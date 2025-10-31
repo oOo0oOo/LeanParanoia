@@ -56,7 +56,6 @@ class Verifier:
         allowed_axioms: Optional[List[str]] = None,
         trust_modules: Optional[List[str]] = None,
         fail_fast: bool = False,
-        config: Optional[dict] = None,  # Backward compatibility
     ) -> VerificationResult:
         """
         Verify a theorem from the test project.
@@ -68,26 +67,10 @@ class Verifier:
             allowed_axioms: Whitelisted axioms (default: propext, Quot.sound, Classical.choice)
             trust_modules: Module prefixes to skip verification
             fail_fast: Stop after first failure
-            config: (deprecated) Old-style config dict for backward compatibility
 
         Returns:
             VerificationResult with success, failures, failed_tests, errors attributes
         """
-        # Handle old config dict style
-        if config:
-            check_sorry = config.get("checkSorry", check_sorry)
-            check_metavariables = config.get("checkMetavariables", check_metavariables)
-            check_unsafe = config.get("checkUnsafe", check_unsafe)
-            check_axioms = config.get("checkAxioms", check_axioms)
-            check_extern = config.get("checkExtern", check_extern)
-            check_constructors = config.get("checkConstructors", check_constructors)
-            check_recursors = config.get("checkRecursors", check_recursors)
-            check_opaque_bodies = config.get("checkOpaqueBodies", check_opaque_bodies)
-            check_source = config.get("checkSource", check_source)
-            enable_replay = config.get("enableReplay", enable_replay)
-            allowed_axioms = config.get("allowedAxioms", allowed_axioms)
-            trust_modules = config.get("trustModules", trust_modules)
-            fail_fast = config.get("failFast", fail_fast)
 
         theorem_name = f"{module}.{theorem}"
         cmd = ["lake", "env", str(self.paranoia_path), theorem_name]
@@ -319,3 +302,6 @@ def verifier(setup_lean_test_project):
 def mathlib_verifier(setup_mathlib_benchmark_project):
     """Build LeanParanoia and return verifier interface for Mathlib project"""
     return Verifier(_build_paranoia(), setup_mathlib_benchmark_project)
+
+
+

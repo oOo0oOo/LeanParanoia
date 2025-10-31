@@ -34,21 +34,18 @@ def test_replay_with_transitive_dependencies(verifier):
 
 def test_replay_can_be_disabled(verifier):
     """Test that replay can be disabled via config"""
-    config = {"enableReplay": False}
-
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.Simple", "simple_theorem", config=config
+        "LeanTestProject.Valid.Simple", "simple_theorem", enable_replay=False
     )
 
     assert result.success
 
 
-def test_replay_with_whitelisted_axioms(verifier, default_config):
+def test_replay_with_whitelisted_axioms(verifier):
     """Test replay verification with whitelisted axioms"""
     result = verifier.verify_theorem(
         "LeanTestProject.Valid.WithAxioms",
         "uses_choice",
-        config=default_config,
     )
 
     assert result.success, (
@@ -70,9 +67,8 @@ def test_replay_with_sorry_in_dependencies(verifier):
 
 def test_replay_integration_with_dependencies(verifier):
     """Test that replay verification handles multi-level dependencies correctly"""
-    config = {"enableReplay": True}
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.Dependencies", "uses_helper", config=config
+        "LeanTestProject.Valid.Dependencies", "uses_helper", enable_replay=True
     )
 
     assert result.success
@@ -81,9 +77,8 @@ def test_replay_integration_with_dependencies(verifier):
 
 def test_replay_integration_with_deep_dependencies(verifier):
     """Test replay with multi-level transitive dependencies"""
-    config = {"enableReplay": True}
     result = verifier.verify_theorem(
-        "LeanTestProject.Transitive.Level2_UsesBoth", "uses_both", config=config
+        "LeanTestProject.Transitive.Level2_UsesBoth", "uses_both", enable_replay=True
     )
 
     assert result.success
@@ -92,9 +87,8 @@ def test_replay_integration_with_deep_dependencies(verifier):
 
 def test_replay_integration_disabled(verifier):
     """Test that disabling replay still allows verification to pass"""
-    config = {"enableReplay": False}
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.Simple", "simple_theorem", config=config
+        "LeanTestProject.Valid.Simple", "simple_theorem", enable_replay=False
     )
 
     assert result.success
@@ -102,12 +96,11 @@ def test_replay_integration_disabled(verifier):
 
 def test_replay_integration_with_axioms(verifier):
     """Test that replay works correctly with whitelisted axioms"""
-    config = {
-        "enableReplay": True,
-        "allowedAxioms": ["propext", "Quot.sound", "Classical.choice"],
-    }
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.WithAxioms", "uses_choice", config=config
+        "LeanTestProject.Valid.WithAxioms",
+        "uses_choice",
+        enable_replay=True,
+        allowed_axioms=["propext", "Quot.sound", "Classical.choice"],
     )
 
     assert result.success
@@ -128,9 +121,8 @@ def test_replay_integration_catches_sorry(verifier):
 
 def test_replay_with_deep_dependencies(verifier):
     """Test replay with multi-level transitive dependencies"""
-    config = {"enableReplay": True}
     result = verifier.verify_theorem(
-        "LeanTestProject.Transitive.Level2_UsesBoth", "uses_both", config=config
+        "LeanTestProject.Transitive.Level2_UsesBoth", "uses_both", enable_replay=True
     )
 
     assert result.success
@@ -139,22 +131,20 @@ def test_replay_with_deep_dependencies(verifier):
 
 def test_replay_disabled(verifier):
     """Test that disabling replay still allows verification to pass"""
-    config = {"enableReplay": False}
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.Simple", "simple_theorem", config=config
+        "LeanTestProject.Valid.Simple", "simple_theorem", enable_replay=False
     )
 
     assert result.success
 
 
-def test_replay_with_axioms(verifier, default_config):
+def test_replay_with_axioms(verifier):
     """Test that replay works correctly with whitelisted axioms"""
-    config = {
-        "enableReplay": True,
-        "allowedAxioms": ["propext", "Quot.sound", "Classical.choice"],
-    }
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.WithAxioms", "uses_choice", config=config
+        "LeanTestProject.Valid.WithAxioms",
+        "uses_choice",
+        enable_replay=True,
+        allowed_axioms=["propext", "Quot.sound", "Classical.choice"],
     )
 
     assert result.success

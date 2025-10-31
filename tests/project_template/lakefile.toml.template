@@ -1,0 +1,7 @@
+name = "LeanTestProject"
+version = "0.1.0"
+defaultTargets = ["LeanTestProject"]
+
+[[lean_lib]]
+name = "LeanTestProject"
+roots = ["LeanTestProject"]

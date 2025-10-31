@@ -1,0 +1,15 @@
+name = "paranoia"
+version = "0.1.0"
+defaultTargets = ["paranoia"]
+
+[[lean_lib]]
+name = "LeanParanoia"
+
+[[lean_exe]]
+name = "paranoia"
+root = "Main"
+
+[[require]]
+name = "lean4checker"
+git = "https://github.com/leanprover/lean4checker.git"
+rev = "master"

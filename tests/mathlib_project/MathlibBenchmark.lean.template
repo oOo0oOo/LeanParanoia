@@ -1,0 +1,8 @@
+import Mathlib.Data.Nat.Factorial.Basic
+
+-- Simple theorem that uses Mathlib
+theorem test_factorial_succ (n : Nat) : Nat.factorial (n + 1) = (n + 1) * Nat.factorial n :=
+  Nat.factorial_succ n
+
+-- Even simpler theorem
+theorem test_nat_succ : Nat.succ 0 = 1 := rfl

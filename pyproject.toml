@@ -1,0 +1,16 @@
+[project]
+name = "leanparanoia-tests"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.5"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--no-header --tb=line -q -m 'not benchmark'"
+markers = [
+    "exploit: Tests that verify exploit detection",
+    "benchmark: Performance benchmarks with Mathlib (skipped by default)",
+]

@@ -1,0 +1,12 @@
+name = "MathlibBenchmark"
+defaultTargets = ["MathlibBenchmark"]
+
+[[lean_lib]]
+name = "MathlibBenchmark"
+roots = ["MathlibBenchmark"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "MATHLIB_VERSION"
+

@@ -1,0 +1,9 @@
+/.lake
+
+.pytest_cache/
+__pycache__/
+
+.github/instructions/
+.venv/
+.github/
+.ruff_cache/

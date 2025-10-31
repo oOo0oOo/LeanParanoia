@@ -10,10 +10,21 @@ See [EXPLOITS.md](EXPLOITS.md) for a list of the different exploit categories th
 
 ## Installation & Usage
 
+Add the LeanParanoia dependency to your `lakefile.toml`:
+
+```toml
+[[require]]
+name = "paranoia"
+git = "https://github.com/oOo0oOo/LeanParanoia"
+rev = "main"
+```
+
+Then, in your terminal, run:
+
 ```bash
-lake add paranoia https://github.com/oOo0oOo/LeanParanoia
+lake update --keep-toolchain
 lake build paranoia
-lake env .lake/packages/paranoia/.lake/build/bin/paranoia MyTheoremName
+lake exe paranoia MyTheoremName # Use Module.SubModule.theorem_name
 ```
 
 ## Command Line Options

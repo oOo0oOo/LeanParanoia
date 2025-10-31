@@ -14,3 +14,8 @@ markers = [
     "exploit: Tests that verify exploit detection",
     "benchmark: Performance benchmarks with Mathlib (skipped by default)",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.3",
+]

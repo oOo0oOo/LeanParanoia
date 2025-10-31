@@ -100,7 +100,7 @@ class Verifier:
                 "checkOpaqueBodies": "--no-opaque-bodies",
                 "checkSource": "--no-source-check",
             }
-            
+
             # Add flags for disabled checks (default is True/enabled)
             for config_key, flag in flag_mappings.items():
                 if not config.get(config_key, True):
@@ -148,7 +148,9 @@ class Verifier:
                     str(name): [str(msg) for msg in messages]
                     for name, messages in failures_raw.items()
                 }
-                error_trace = json_payload.get("errorTrace") or json_payload.get("error_trace")
+                error_trace = json_payload.get("errorTrace") or json_payload.get(
+                    "error_trace"
+                )
                 return VerificationResult(
                     success=success,
                     failures=failures,
@@ -298,12 +300,12 @@ def setup_lean_test_project():
 def setup_mathlib_benchmark_project():
     """
     Generate Mathlib benchmark project for performance testing.
-    
+
     Simple setup: just copies lakefile and benchmark file, lets Lake handle the rest.
     """
     lean_toolchain_file = ROOT_DIR / "lean-toolchain"
     template_path = MATHLIB_TEMPLATE_DIR / "MathlibBenchmark.lean.template"
-    
+
     # Check if we can reuse existing project
     olean_path = (
         MATHLIB_BUILD_DIR
@@ -316,7 +318,7 @@ def setup_mathlib_benchmark_project():
     if olean_path.is_file():
         print(f"Reusing existing Mathlib benchmark project at {MATHLIB_BUILD_DIR}")
         return MATHLIB_BUILD_DIR
-    
+
     # Ensure project directory exists but keep cached packages to avoid re-cloning
     MATHLIB_BUILD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -335,11 +337,11 @@ def setup_mathlib_benchmark_project():
 
     # Copy essential files and substitute version
     shutil.copy(lean_toolchain_file, MATHLIB_BUILD_DIR / "lean-toolchain")
-    
+
     lakefile_template = (MATHLIB_TEMPLATE_DIR / "lakefile.toml.template").read_text()
     lakefile_content = lakefile_template.replace("MATHLIB_VERSION", version_tag)
     (MATHLIB_BUILD_DIR / "lakefile.toml").write_text(lakefile_content)
-    
+
     src_dir = MATHLIB_BUILD_DIR / "MathlibBenchmark"
     src_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(template_path, src_dir / "Benchmark.lean")
@@ -351,10 +353,12 @@ def setup_mathlib_benchmark_project():
 
     if first_time_setup:
         print(f"Building Mathlib benchmark project at {MATHLIB_BUILD_DIR}...")
-        print("  This will download Mathlib (~2GB) and may take 10-30 minutes on first run...")
+        print(
+            "  This will download Mathlib (~2GB) and may take 10-30 minutes on first run..."
+        )
     else:
         print(f"Updating Mathlib benchmark project at {MATHLIB_BUILD_DIR}...")
-    
+
     # Update dependencies (downloads Mathlib)
     print("  Step 1/3: Downloading Mathlib repository...")
     try:
@@ -369,11 +373,11 @@ def setup_mathlib_benchmark_project():
             print("  ✓ Mathlib downloaded")
         else:
             print("  ✓ Lake manifest up to date")
-    except subprocess.CalledProcessError as e:
-        print(f"  ✗ lake update failed")
+    except subprocess.CalledProcessError:
+        print("  ✗ lake update failed")
         return MATHLIB_BUILD_DIR
     except subprocess.TimeoutExpired:
-        print(f"  ✗ lake update timed out")
+        print("  ✗ lake update timed out")
         return MATHLIB_BUILD_DIR
 
     # Get prebuilt cache
@@ -387,10 +391,10 @@ def setup_mathlib_benchmark_project():
             timeout=600,
         )
         print("  ✓ Cache downloaded")
-    except subprocess.CalledProcessError as e:
-        print(f"  ⚠ cache get failed, will build from source (slow)")
+    except subprocess.CalledProcessError:
+        print("  ⚠ cache get failed, will build from source (slow)")
     except subprocess.TimeoutExpired:
-        print(f"  ⚠ cache get timed out")
+        print("  ⚠ cache get timed out")
 
     # Build the project
     print("  Step 3/3: Building MathlibBenchmark...")
@@ -403,10 +407,10 @@ def setup_mathlib_benchmark_project():
             timeout=600,
         )
         print("  ✓ Build complete!")
-    except subprocess.CalledProcessError as e:
-        print(f"  ✗ lake build failed")
+    except subprocess.CalledProcessError:
+        print("  ✗ lake build failed")
     except subprocess.TimeoutExpired:
-        print(f"  ✗ lake build timed out")
+        print("  ✗ lake build timed out")
 
     return MATHLIB_BUILD_DIR
 
@@ -476,44 +480,6 @@ def default_config():
         "checkOpaqueBodies": True,
         "checkSource": True,
         "enableReplay": True,
-        "allowedAxioms": ["propext", "Quot.sound", "Classical.choice"],
-        "trustModules": [],
-    }
-
-
-@pytest.fixture
-def strict_config():
-    """Strict configuration - no axioms allowed, all checks enabled"""
-    return {
-        "checkSorry": True,
-        "checkMetavariables": True,
-        "checkUnsafe": True,
-        "checkAxioms": True,
-        "checkConstructors": True,
-        "checkRecursors": True,
-        "checkExtern": True,
-        "checkOpaqueBodies": True,
-        "checkSource": True,
-        "enableReplay": True,
-        "allowedAxioms": [],
-        "trustModules": [],
-    }
-
-
-@pytest.fixture
-def fast_config():
-    """Fast checks only, no replay, all other checks enabled"""
-    return {
-        "checkSorry": True,
-        "checkMetavariables": True,
-        "checkUnsafe": True,
-        "checkAxioms": True,
-        "checkConstructors": True,
-        "checkRecursors": True,
-        "checkExtern": True,
-        "checkOpaqueBodies": True,
-        "checkSource": True,
-        "enableReplay": False,
         "allowedAxioms": ["propext", "Quot.sound", "Classical.choice"],
         "trustModules": [],
     }

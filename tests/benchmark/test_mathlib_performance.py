@@ -93,4 +93,3 @@ def test_benchmark_full_checks_with_replay(mathlib_verifier, theorem):
         f"Trace: {result.error_trace[:500] if result.error_trace else 'None'}"
     )
     print(f"\n{theorem} - incl replay: {elapsed:.3f}s")
-

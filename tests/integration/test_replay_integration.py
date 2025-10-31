@@ -2,6 +2,7 @@
 Integration tests for lean4checker replay integration.
 """
 
+
 def test_replay_with_valid_theorem(verifier):
     """Test replay verification on valid theorem"""
     result = verifier.verify_theorem("LeanTestProject.Valid.Simple", "simple_theorem")
@@ -123,6 +124,7 @@ def test_replay_integration_catches_sorry(verifier):
     assert not result.success
     # Should fail on NoSorry check (primary detection)
     assert "NoSorry" in result.failed_tests or len(result.failed_tests) > 0
+
 
 def test_replay_with_deep_dependencies(verifier):
     """Test replay with multi-level transitive dependencies"""

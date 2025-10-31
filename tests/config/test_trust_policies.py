@@ -3,7 +3,6 @@ Tests for trust policies (trusting specific modules to skip verification).
 """
 
 
-
 def test_trust_modules_empty_by_default(verifier, default_config):
     """Test that no modules are trusted by default"""
     # With empty trust list, should verify everything

@@ -1,6 +1,5 @@
 """Tests for test toggles (enabling/disabling individual tests)."""
 
-
 import conftest as fixtures
 
 

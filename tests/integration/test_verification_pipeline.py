@@ -3,7 +3,6 @@ Integration tests for full verification pipeline.
 """
 
 
-
 def test_verify_valid_theorem(verifier):
     """Test verification of valid theorem"""
     result = verifier.verify_theorem("LeanTestProject.Valid.Simple", "simple_theorem")

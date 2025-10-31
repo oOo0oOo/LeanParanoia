@@ -121,4 +121,4 @@ def test_fail_fast_returns_first_failure_only(verifier):
 
     assert not result.success
     assert result.failed_tests == ["NoSorry"]
-    assert result.errors == ["NoSorry: Theorem 'exploit_theorem' contains sorry"]
+    assert result.errors == ["Theorem 'exploit_theorem' contains sorry"]

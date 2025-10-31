@@ -1,6 +1,5 @@
 import Lean
 import Lean.Compiler.CSimpAttr
-import LeanParanoia.Types
 import LeanParanoia.Config
 
 open Lean Meta Elab Std

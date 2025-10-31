@@ -2,7 +2,7 @@ import LeanParanoia
 import Lean
 import Lean.Data.Json
 
-open Lean Meta
+open Lean Meta LeanParanoia
 
 def parseArgs (args : List String) : IO (VerificationConfig × String) := do
   let mut config := VerificationConfig.default
@@ -53,6 +53,8 @@ def parseArgs (args : List String) : IO (VerificationConfig × String) := do
       config := { config with trustModules := modules }
     | "--help" | "-h" =>
       IO.println "Usage: paranoia [OPTIONS] THEOREM_NAME"
+      IO.println ""
+      IO.println "Specify theorems using their full module path: Module.SubModule.theorem_name"
       IO.println ""
       IO.println "Options:"
       IO.println "  --no-sorry              Disable sorry check"
@@ -105,11 +107,11 @@ unsafe def verifyTheorem (config : VerificationConfig) (theoremName : String) : 
     importModules #[{module := moduleName}] {} 0
   catch e =>
     -- Module import failed (kernel rejection, missing .olean, etc.)
-    let test : NamedTest := {
+    let failure : CheckFailure := {
       name := "KernelTypeCheck"
-      result := TestResult.Fail s!"Failed to import module '{moduleName}': {e}"
+      reason := s!"Failed to import module '{moduleName}': {e}"
     }
-    return VerificationResult.fromTests [test]
+    return VerificationResult.fromFailures [failure]
 
   let actualName :=
     if env.find? fullName |>.isSome then
@@ -117,8 +119,8 @@ unsafe def verifyTheorem (config : VerificationConfig) (theoremName : String) : 
     else
       fullName.components.getLast!
 
-  let tests ← LeanParanoia.runChecks config env actualName
-  return VerificationResult.fromTests tests
+  let failures ← LeanParanoia.runChecks config env actualName
+  return VerificationResult.fromFailures failures
 
 unsafe def main (args : List String) : IO UInt32 := do
   try

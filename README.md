@@ -18,8 +18,12 @@ lake env .lake/packages/paranoia/.lake/build/bin/paranoia MyTheoremName
 
 ## Command Line Options
 
-```
+```shell
+$ lake exe paranoia --help
+
 Usage: paranoia [OPTIONS] THEOREM_NAME
+
+Specify theorems using their full module path: Module.SubModule.theorem_name
 
 Options:
   --no-sorry              Disable sorry check

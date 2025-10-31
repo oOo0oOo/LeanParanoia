@@ -197,15 +197,13 @@ def checkRecursorIntegrity (env : Environment) (name : Name) : IO (Option NamedT
         return none
     | _ => return none
 
-def checkNoNativeComputation (env : Environment) (name : Name) (value : Expr)
-  (trustModules : Array String := #[]) (allowOpaqueBodies : Bool := true) : Option NamedTest :=
+def checkNoNativeComputation (name : Name) (value : Expr) (deps : NameSet) : Option NamedTest :=
   match findNativeComputationInExpr? value with
   | some nativeConst =>
       some { name := "NoNativeComputation"
            , result := TestResult.Fail
                s!"Definition '{name}' uses native computation primitive '{nativeConst}'" }
   | none =>
-    let deps := collectTransitiveDeps env name ∅ trustModules allowOpaqueBodies
       match findNativeComputationInDeps deps name with
       | some nativeConst =>
           some { name := "NoNativeComputation"
@@ -323,11 +321,6 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
       if csimpMap.contains info.name then
         checkedCSimps := checkedCSimps.insert info.name
 
-    if let some test := checkNoNativeComputation env name value config.trustModules allowOpaqueBodies then
-      tests := tests.push test
-      if config.failFast && !test.result.isPass then
-        return tests.toList
-
     if config.checkSource then
       if let some test ← checkSourcePatterns env name config.sourceBlacklist config.sourceWhitelist config.trustModules then
         tests := tests.push test
@@ -354,6 +347,11 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         (deps, infoArray, missingRev.reverse)
       else
         (∅, #[], [])
+
+    if let some test := checkNoNativeComputation name value allDeps then
+      tests := tests.push test
+      if config.failFast && !test.result.isPass then
+        return tests.toList
 
     if needsTransitiveDeps then
       let optionChecks : List (Name → ConstantInfo → Option NamedTest) :=

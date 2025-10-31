@@ -3,43 +3,35 @@ Tests for axiom whitelist configuration.
 """
 
 
-def test_default_whitelist_allows_standard_axioms(verifier, default_config):
+def test_default_whitelist_allows_standard_axioms(verifier):
     """Test default whitelist allows standard axioms (propext, Quot.sound, Classical.choice)"""
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.WithAxioms", "uses_choice", config=default_config
+        "LeanTestProject.Valid.WithAxioms", "uses_choice"
     )
-
     assert result.success
 
 
 def test_empty_whitelist_rejects_standard_axioms(verifier):
     """Test empty whitelist rejects all axioms including standard ones"""
-    config = {"allowedAxioms": []}
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.WithAxioms", "uses_choice", config=config
+        "LeanTestProject.Valid.WithAxioms", "uses_choice", allowed_axioms=[]
     )
-
     assert not result.success
     assert "AxiomWhitelist" in result.failed_tests
 
 
 def test_custom_whitelist_allows_specific_axioms(verifier):
     """Test custom whitelist allows only specified axioms"""
-    config = {"allowedAxioms": ["propext"]}
     result = verifier.verify_theorem(
-        "LeanTestProject.Valid.Simple", "simple_theorem", config=config
+        "LeanTestProject.Valid.Simple", "simple_theorem", allowed_axioms=["propext"]
     )
-
-    # Simple theorem should work with minimal whitelist
     assert result.success
 
 
-def test_whitelist_rejects_custom_axioms(verifier, default_config):
+def test_whitelist_rejects_custom_axioms(verifier):
     """Test that custom axioms are rejected even with standard whitelist"""
     result = verifier.verify_theorem(
-        "LeanTestProject.Axioms.False", "exploit_theorem", config=default_config
+        "LeanTestProject.Axioms.False", "exploit_theorem"
     )
-
-    # Custom axiom should be rejected
     assert not result.success
     assert "AxiomWhitelist" in result.failed_tests

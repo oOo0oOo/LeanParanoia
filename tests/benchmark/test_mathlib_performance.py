@@ -27,34 +27,17 @@ BENCHMARK_THEOREMS = [
 @pytest.mark.parametrize("theorem", BENCHMARK_THEOREMS)
 def test_benchmark_full_checks_no_replay(mathlib_verifier, theorem):
     """Benchmark the full checker stack without trusting Mathlib or using replay."""
-    config = {
-        "checkSorry": True,
-        "checkMetavariables": True,
-        "checkUnsafe": True,
-        "checkPartial": True,
-        "checkAxioms": True,
-        "checkConstantsExist": True,
-        "checkConstructors": True,
-        "checkRecursors": True,
-        "checkExtern": True,
-        "checkOpaqueBodies": True,
-        "enableReplay": False,
-        "allowedAxioms": ["propext", "Quot.sound", "Classical.choice"],
-        "trustModules": [],
-    }
-
     start = time.time()
     result = mathlib_verifier.verify_theorem(
         BENCHMARK_MODULE,
         theorem,
-        config=config,
+        enable_replay=False,
     )
     elapsed = time.time() - start
 
     assert result.success, (
         f"Full verification failed for {theorem}. "
-        f"Errors: {result.errors}. "
-        f"Trace: {result.error_trace[:500] if result.error_trace else 'None'}"
+        f"Errors: {result.errors}"
     )
     print(f"\n{theorem} - no replay: {elapsed:.3f}s")
 
@@ -63,33 +46,16 @@ def test_benchmark_full_checks_no_replay(mathlib_verifier, theorem):
 @pytest.mark.parametrize("theorem", BENCHMARK_THEOREMS)
 def test_benchmark_full_checks_with_replay(mathlib_verifier, theorem):
     """Benchmark the same theorem but with replay enabled to capture overhead."""
-    config = {
-        "checkSorry": True,
-        "checkMetavariables": True,
-        "checkUnsafe": True,
-        "checkPartial": True,
-        "checkAxioms": True,
-        "checkConstantsExist": True,
-        "checkConstructors": True,
-        "checkRecursors": True,
-        "checkExtern": True,
-        "checkOpaqueBodies": True,
-        "enableReplay": True,
-        "allowedAxioms": ["propext", "Quot.sound", "Classical.choice"],
-        "trustModules": [],
-    }
-
     start = time.time()
     result = mathlib_verifier.verify_theorem(
         BENCHMARK_MODULE,
         theorem,
-        config=config,
+        enable_replay=True,
     )
     elapsed = time.time() - start
 
     assert result.success, (
         f"Full verification with replay failed for {theorem}. "
-        f"Errors: {result.errors}. "
-        f"Trace: {result.error_trace[:500] if result.error_trace else 'None'}"
+        f"Errors: {result.errors}"
     )
     print(f"\n{theorem} - incl replay: {elapsed:.3f}s")

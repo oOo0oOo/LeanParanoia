@@ -18,12 +18,12 @@ def user_project(tmp_path_factory):
     """Setup: Fresh project with LeanParanoia as dependency"""
     project = tmp_path_factory.mktemp("user_project")
     paranoia_root = Path(__file__).parent.parent.parent
-    
+
     # Create minimal project
     (project / "lean-toolchain").write_text(
         (paranoia_root / "lean-toolchain").read_text()
     )
-    
+
     # Manually add paranoia dependency (simulates: lake add paranoia <repo>)
     lakefile = f'''name = "UserProject"
 defaultTargets = ["UserProject"]
@@ -36,17 +36,17 @@ name = "paranoia"
 path = "{paranoia_root}"
 '''
     (project / "lakefile.toml").write_text(lakefile)
-    
+
     (project / "UserProject").mkdir()
     (project / "UserProject" / "Test.lean").write_text(
         'theorem valid : True := trivial\ntheorem invalid : False := by sorry'
     )
     (project / "UserProject.lean").write_text("import UserProject.Test")
-    
+
     # Build the user project first, then paranoia
     subprocess.run(["lake", "build"], cwd=project, check=True, timeout=300)
     subprocess.run(["lake", "build", "paranoia"], cwd=project, check=True, timeout=300)
-    
+
     yield project
     shutil.rmtree(project, ignore_errors=True)
 
@@ -70,7 +70,7 @@ def test_lake_env_verbose_path_works(user_project):
         print(f"Binary not found at {bin_path}")
         print(f"Contents of .lake/packages: {list((user_project / '.lake/packages').iterdir()) if (user_project / '.lake/packages').exists() else 'does not exist'}")
     assert bin_path.exists()
-    
+
     result = subprocess.run(
         ["lake", "env", str(bin_path), "UserProject.Test.valid"],
         cwd=user_project, capture_output=True, text=True, timeout=60

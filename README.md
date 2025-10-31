@@ -2,7 +2,7 @@
 
 > **THIS TOOL IS STILL IN EARLY DEVELOPMENT AND NOT READY FOR USE!**
 
-Configurable proof verification for Lean 4 that detects soundness exploits through dependency analysis and environment replay via lean4checker. Operates without a trusted reference file, trading security for flexibility, and is best used in combination with challenge-solution verifiers for high-stakes proofs.
+Configurable proof verification for Lean 4 that detects soundness exploits through dependency analysis and environment replay via [lean4checker](https://github.com/leanprover/lean4checker). Operates without trusted reference files and cannot guarantee complete soundness. Validate critical proofs with challenge–solution verifiers.
 
 ## Exploits
 
@@ -46,6 +46,12 @@ Options:
   --fail-fast             Stop after first failing check
   -h, --help              Show this help
 ```
+
+## Related Projects
+
+- [lean4checker](https://github.com/leanprover/lean4checker): Recheck a compiled Lean olean file using the Lean kernel. **Direct dependency**
+- [SaveVerify](https://github.com/GasStationManager/SafeVerify): Check whether a file of submitted Lean code and/or proof matches the specifications.
+- [Lean 4 Autograder](https://github.com/robertylewis/lean4-autograder-main): Lean 4 autograder that works with Gradescope.
 
 ## Testing
 

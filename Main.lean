@@ -21,11 +21,11 @@ def parseArgs (args : List String) : IO (VerificationConfig × String) := do
     | "--no-implemented-by" => config := { config with checkImplementedBy := false }
     | "--no-csimp" => config := { config with checkCSimp := false }
     | "--no-native-computation" => config := { config with checkNativeComputation := false }
-    | "--no-opaque-bodies" => config := { config with checkOpaqueBodies := false }
     | "--no-constructors" => config := { config with checkConstructors := false }
     | "--no-recursors" => config := { config with checkRecursors := false }
     | "--no-source-check" => config := { config with checkSource := false }
     | "--no-replay" => config := { config with enableReplay := false }
+    | "--no-opaque-bodies" => config := { config with checkOpaqueBodies := false }
     | "--fail-fast" => config := { config with failFast := true }
     | "--allowed-axioms" =>
       i := i + 1
@@ -70,11 +70,11 @@ def parseArgs (args : List String) : IO (VerificationConfig × String) := do
       IO.println "  --no-implemented-by     Disable implemented_by check"
       IO.println "  --no-csimp              Disable csimp attribute check"
       IO.println "  --no-native-computation Disable native_decide/ofReduce check"
-      IO.println "  --no-opaque-bodies      Skip inspecting opaque constant bodies"
       IO.println "  --no-constructors       Disable constructor integrity check"
       IO.println "  --no-recursors          Disable recursor integrity check"
       IO.println "  --no-source-check       Disable source-level pattern check"
       IO.println "  --no-replay             Disable environment replay"
+      IO.println "  --no-opaque-bodies      Skip inspecting opaque constant bodies"
       IO.println "  --allowed-axioms AXIOMS Comma-separated list of allowed axioms"
       IO.println "                          (default: propext,Quot.sound,Classical.choice)"
       IO.println "  --source-blacklist PATTERNS Comma-separated list of source patterns to reject"

@@ -29,9 +29,7 @@ lake exe paranoia MyTheoremName # Use Module.SubModule.theorem_name
 
 ## Command Line Options
 
-```shell
-$ lake exe paranoia --help
-
+```
 Usage: paranoia [OPTIONS] THEOREM_NAME
 
 Specify theorems using their full module path: Module.SubModule.theorem_name
@@ -40,13 +38,17 @@ Options:
   --no-sorry              Disable sorry check
   --no-metavariables      Disable metavariable check
   --no-unsafe             Disable unsafe check
+  --no-partial            Disable partial function check
   --no-axioms             Disable axiom whitelist check
   --no-extern             Disable extern check
-  --no-opaque-bodies      Skip inspecting opaque constant bodies
+  --no-implemented-by     Disable implemented_by check
+  --no-csimp              Disable csimp attribute check
+  --no-native-computation Disable native_decide/ofReduce check
   --no-constructors       Disable constructor integrity check
   --no-recursors          Disable recursor integrity check
   --no-source-check       Disable source-level pattern check
   --no-replay             Disable environment replay
+  --no-opaque-bodies      Skip inspecting opaque constant bodies
   --allowed-axioms AXIOMS Comma-separated list of allowed axioms
                           (default: propext,Quot.sound,Classical.choice)
   --source-blacklist PATTERNS Comma-separated list of source patterns to reject

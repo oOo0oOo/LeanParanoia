@@ -8,7 +8,7 @@ import pytest
 import subprocess
 import shutil
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List
 
 
 TEST_DIR = Path(__file__).parent
@@ -139,7 +139,9 @@ class Verifier:
         except subprocess.TimeoutExpired:
             return VerificationResult(False, {"Timeout": ["Verification timed out"]})
         except Exception as e:
-            return VerificationResult(False, {"Error": [f"Error running verifier: {e}"]})
+            return VerificationResult(
+                False, {"Error": [f"Error running verifier: {e}"]}
+            )
 
 
 def _build_lean_project(
@@ -218,7 +220,12 @@ def setup_mathlib_benchmark_project():
     """Generate Mathlib benchmark project for performance testing."""
     lean_toolchain = ROOT_DIR / "lean-toolchain"
     olean_path = (
-        MATHLIB_BUILD_DIR / ".lake" / "build" / "lib" / "lean" / "MathlibBenchmark.olean"
+        MATHLIB_BUILD_DIR
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "MathlibBenchmark.olean"
     )
 
     # Reuse if already built
@@ -252,7 +259,8 @@ def setup_mathlib_benchmark_project():
     src_dir = MATHLIB_BUILD_DIR / "MathlibBenchmark"
     src_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(
-        MATHLIB_TEMPLATE_DIR / "MathlibBenchmark.lean.template", src_dir / "Benchmark.lean"
+        MATHLIB_TEMPLATE_DIR / "MathlibBenchmark.lean.template",
+        src_dir / "Benchmark.lean",
     )
     (MATHLIB_BUILD_DIR / "MathlibBenchmark.lean").write_text(
         "import MathlibBenchmark.Benchmark\n"
@@ -302,6 +310,3 @@ def verifier(setup_lean_test_project):
 def mathlib_verifier(setup_mathlib_benchmark_project):
     """Build LeanParanoia and return verifier interface for Mathlib project"""
     return Verifier(_build_paranoia(), setup_mathlib_benchmark_project)
-
-
-

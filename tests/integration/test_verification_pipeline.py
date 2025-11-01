@@ -19,7 +19,5 @@ def test_verify_with_dependencies(verifier):
 
 def test_verify_with_whitelisted_axioms(verifier):
     """Test verification with whitelisted axioms"""
-    result = verifier.verify_theorem(
-        "LeanTestProject.Valid.WithAxioms", "uses_choice"
-    )
+    result = verifier.verify_theorem("LeanTestProject.Valid.WithAxioms", "uses_choice")
     assert result.success

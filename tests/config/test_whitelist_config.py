@@ -5,9 +5,7 @@ Tests for axiom whitelist configuration.
 
 def test_default_whitelist_allows_standard_axioms(verifier):
     """Test default whitelist allows standard axioms (propext, Quot.sound, Classical.choice)"""
-    result = verifier.verify_theorem(
-        "LeanTestProject.Valid.WithAxioms", "uses_choice"
-    )
+    result = verifier.verify_theorem("LeanTestProject.Valid.WithAxioms", "uses_choice")
     assert result.success
 
 
@@ -30,8 +28,6 @@ def test_custom_whitelist_allows_specific_axioms(verifier):
 
 def test_whitelist_rejects_custom_axioms(verifier):
     """Test that custom axioms are rejected even with standard whitelist"""
-    result = verifier.verify_theorem(
-        "LeanTestProject.Axioms.False", "exploit_theorem"
-    )
+    result = verifier.verify_theorem("LeanTestProject.Axioms.False", "exploit_theorem")
     assert not result.success
     assert "AxiomWhitelist" in result.failed_tests

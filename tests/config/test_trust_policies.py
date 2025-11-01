@@ -5,9 +5,7 @@ Tests for trust policies (trusting specific modules to skip verification).
 
 def test_trust_modules_empty_by_default(verifier):
     """Test that no modules are trusted by default"""
-    result = verifier.verify_theorem(
-        "LeanTestProject.Valid.Simple", "simple_theorem"
-    )
+    result = verifier.verify_theorem("LeanTestProject.Valid.Simple", "simple_theorem")
     assert result.success
 
 

@@ -36,8 +36,7 @@ def test_benchmark_full_checks_no_replay(mathlib_verifier, theorem):
     elapsed = time.time() - start
 
     assert result.success, (
-        f"Full verification failed for {theorem}. "
-        f"Errors: {result.errors}"
+        f"Full verification failed for {theorem}. Errors: {result.errors}"
     )
     print(f"\n{theorem} - no replay: {elapsed:.3f}s")
 
@@ -55,7 +54,6 @@ def test_benchmark_full_checks_with_replay(mathlib_verifier, theorem):
     elapsed = time.time() - start
 
     assert result.success, (
-        f"Full verification with replay failed for {theorem}. "
-        f"Errors: {result.errors}"
+        f"Full verification with replay failed for {theorem}. Errors: {result.errors}"
     )
     print(f"\n{theorem} - incl replay: {elapsed:.3f}s")

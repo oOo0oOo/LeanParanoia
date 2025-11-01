@@ -61,7 +61,7 @@ def test_allowed_axioms_single_value(paranoia_exe: Path, test_project_path: Path
     )
 
     assert result.returncode == 0
-    assert "AxiomWhitelist" not in _combined_output(result)
+    assert "CustomAxioms" not in _combined_output(result)
 
 
 def test_allowed_axioms_empty_list(paranoia_exe: Path, test_project_path: Path):
@@ -72,7 +72,7 @@ def test_allowed_axioms_empty_list(paranoia_exe: Path, test_project_path: Path):
 
     output = _combined_output(result)
     assert result.returncode != 0
-    assert "AxiomWhitelist" in output
+    assert "CustomAxioms" in output
     assert "Classical.choice" in output
 
 
@@ -147,7 +147,7 @@ def test_fail_fast_limits_failures(paranoia_exe: Path, test_project_path: Path):
     assert result.returncode != 0
     payload = json.loads(_combined_output(result))
     assert payload["failures"] == {
-        "NoSorry": ["Theorem 'exploit_theorem' contains sorry"]
+        "Sorry": ["Theorem 'LeanTestProject.Sorry.Direct.exploit_theorem' contains sorry"]
     }
 
 

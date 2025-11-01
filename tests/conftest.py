@@ -46,8 +46,12 @@ class Verifier:
         check_sorry: bool = True,
         check_metavariables: bool = True,
         check_unsafe: bool = True,
+        check_partial: bool = True,
         check_axioms: bool = True,
         check_extern: bool = True,
+        check_implemented_by: bool = True,
+        check_csimp: bool = True,
+        check_native_computation: bool = True,
         check_constructors: bool = True,
         check_recursors: bool = True,
         check_opaque_bodies: bool = True,
@@ -82,10 +86,18 @@ class Verifier:
             cmd.append("--no-metavariables")
         if not check_unsafe:
             cmd.append("--no-unsafe")
+        if not check_partial:
+            cmd.append("--no-partial")
         if not check_axioms:
             cmd.append("--no-axioms")
         if not check_extern:
             cmd.append("--no-extern")
+        if not check_implemented_by:
+            cmd.append("--no-implemented-by")
+        if not check_csimp:
+            cmd.append("--no-csimp")
+        if not check_native_computation:
+            cmd.append("--no-native-computation")
         if not check_constructors:
             cmd.append("--no-constructors")
         if not check_recursors:

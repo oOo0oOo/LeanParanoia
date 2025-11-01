@@ -6,7 +6,7 @@ def test_disable_sorry_check(verifier):
     result = verifier.verify_theorem(
         "LeanTestProject.Sorry.Direct", "exploit_theorem", check_sorry=False
     )
-    assert result.success or "NoSorry" not in result.failed_tests
+    assert result.success or "Sorry" not in result.failed_tests
 
 
 def test_disable_metavariable_check(verifier):
@@ -32,7 +32,7 @@ def test_disable_axiom_check(verifier):
     result = verifier.verify_theorem(
         "LeanTestProject.Axioms.False", "exploit_theorem", check_axioms=False
     )
-    assert result.success or "AxiomWhitelist" not in result.failed_tests
+    assert result.success or "CustomAxioms" not in result.failed_tests
 
 
 def test_disable_extern_check(verifier):
@@ -83,5 +83,5 @@ def test_fail_fast_returns_first_failure_only(verifier):
         "LeanTestProject.Sorry.Direct", "exploit_theorem", fail_fast=True
     )
     assert not result.success
-    assert result.failed_tests == ["NoSorry"]
-    assert result.errors == ["Theorem 'exploit_theorem' contains sorry"]
+    assert result.failed_tests == ["Sorry"]
+    assert result.errors == ["Theorem 'LeanTestProject.Sorry.Direct.exploit_theorem' contains sorry"]

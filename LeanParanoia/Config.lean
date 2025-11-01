@@ -2,10 +2,14 @@ structure VerificationConfig where
   checkSorry : Bool := true
   checkMetavariables : Bool := true
   checkUnsafe : Bool := true
+  checkPartial : Bool := true
   checkAxioms : Bool := true
   checkConstructors : Bool := true
   checkRecursors : Bool := true
   checkExtern : Bool := true
+  checkImplementedBy : Bool := true
+  checkCSimp : Bool := true
+  checkNativeComputation : Bool := true
   checkOpaqueBodies : Bool := true
   checkSource : Bool := true
   enableReplay : Bool := true

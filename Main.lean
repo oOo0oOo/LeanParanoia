@@ -15,8 +15,12 @@ def parseArgs (args : List String) : IO (VerificationConfig × String) := do
     | "--no-sorry" => config := { config with checkSorry := false }
     | "--no-metavariables" => config := { config with checkMetavariables := false }
     | "--no-unsafe" => config := { config with checkUnsafe := false }
+    | "--no-partial" => config := { config with checkPartial := false }
     | "--no-axioms" => config := { config with checkAxioms := false }
     | "--no-extern" => config := { config with checkExtern := false }
+    | "--no-implemented-by" => config := { config with checkImplementedBy := false }
+    | "--no-csimp" => config := { config with checkCSimp := false }
+    | "--no-native-computation" => config := { config with checkNativeComputation := false }
     | "--no-opaque-bodies" => config := { config with checkOpaqueBodies := false }
     | "--no-constructors" => config := { config with checkConstructors := false }
     | "--no-recursors" => config := { config with checkRecursors := false }
@@ -60,8 +64,12 @@ def parseArgs (args : List String) : IO (VerificationConfig × String) := do
       IO.println "  --no-sorry              Disable sorry check"
       IO.println "  --no-metavariables      Disable metavariable check"
       IO.println "  --no-unsafe             Disable unsafe check"
+      IO.println "  --no-partial            Disable partial function check"
       IO.println "  --no-axioms             Disable axiom whitelist check"
       IO.println "  --no-extern             Disable extern check"
+      IO.println "  --no-implemented-by     Disable implemented_by check"
+      IO.println "  --no-csimp              Disable csimp attribute check"
+      IO.println "  --no-native-computation Disable native_decide/ofReduce check"
       IO.println "  --no-opaque-bodies      Skip inspecting opaque constant bodies"
       IO.println "  --no-constructors       Disable constructor integrity check"
       IO.println "  --no-recursors          Disable recursor integrity check"
@@ -108,7 +116,7 @@ unsafe def verifyTheorem (config : VerificationConfig) (theoremName : String) : 
   catch e =>
     -- Module import failed (kernel rejection, missing .olean, etc.)
     let failure : CheckFailure := {
-      name := "KernelTypeCheck"
+      name := "KernelRejection"
       reason := s!"Failed to import module '{moduleName}': {e}"
     }
     return VerificationResult.fromFailures [failure]

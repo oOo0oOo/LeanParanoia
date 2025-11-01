@@ -15,7 +15,7 @@ def test_empty_whitelist_rejects_standard_axioms(verifier):
         "LeanTestProject.Valid.WithAxioms", "uses_choice", allowed_axioms=[]
     )
     assert not result.success
-    assert "AxiomWhitelist" in result.failed_tests
+    assert "CustomAxioms" in result.failed_tests
 
 
 def test_custom_whitelist_allows_specific_axioms(verifier):
@@ -28,6 +28,6 @@ def test_custom_whitelist_allows_specific_axioms(verifier):
 
 def test_whitelist_rejects_custom_axioms(verifier):
     """Test that custom axioms are rejected even with standard whitelist"""
-    result = verifier.verify_theorem("LeanTestProject.Axioms.False", "exploit_theorem")
+    result = verifier.verify_theorem("LeanTestProject.CustomAxioms.ProveFalse", "exploit_theorem")
     assert not result.success
-    assert "AxiomWhitelist" in result.failed_tests
+    assert "CustomAxioms" in result.failed_tests

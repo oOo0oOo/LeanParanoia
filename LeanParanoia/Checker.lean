@@ -38,25 +38,25 @@ instance : ToJson VerificationResult where
 
 def checkNoSorry (name : Name) (e : Expr) : Option CheckFailure :=
   if hasSorry e then
-    some { name := "NoSorry", reason := s!"Theorem '{name}' contains sorry" }
+    some { name := "Sorry", reason := s!"Theorem '{name}' contains sorry" }
   else
     none
 
 def checkNoMetavars (name : Name) (e : Expr) : Option CheckFailure :=
   if e.hasMVar then
-    some { name := "NoMetavars", reason := s!"Theorem '{name}' contains unresolved metavariables" }
+    some { name := "Metavariables", reason := s!"Theorem '{name}' contains unresolved metavariables" }
   else
     none
 
 def checkNoUnsafe (cinfo : ConstantInfo) : Option CheckFailure :=
   if cinfo.isUnsafe then
-    some { name := "NoUnsafe", reason := s!"Definition '{cinfo.name}' is marked unsafe" }
+    some { name := "Unsafe", reason := s!"Definition '{cinfo.name}' is marked unsafe" }
   else
     none
 
 def checkNoPartial (cinfo : ConstantInfo) : Option CheckFailure :=
   if cinfo.isPartial then
-    some { name := "NoPartial", reason := s!"Definition '{cinfo.name}' is marked partial" }
+    some { name := "Partial", reason := s!"Definition '{cinfo.name}' is marked partial" }
   else
     none
 
@@ -73,7 +73,7 @@ def checkNoExtern (env : Environment) (cinfo : ConstantInfo) (trustModules : Arr
         else if hasExtern then "extern"
         else if hasExport then "export"
         else "init"
-      some { name := "NoExtern", reason := s!"Definition '{cinfo.name}' has dangerous {attrKind} attribute" }
+      some { name := "Extern", reason := s!"Definition '{cinfo.name}' has dangerous {attrKind} attribute" }
     else
       none
 
@@ -86,7 +86,7 @@ def checkNoImplementedBy (env : Environment) (cinfo : ConstantInfo)
        shouldSkipTrustedConstant env implName trustModules then
       none
     else
-      some { name := "NoImplementedBy", reason := s!"Definition '{cinfo.name}' uses implemented_by target '{implName}' " }
+      some { name := "ImplementedBy", reason := s!"Definition '{cinfo.name}' uses implemented_by target '{implName}' " }
 
 def analyzeConstantForCSimp (env : Environment) (trustModules : Array String)
     (label : String) (name : Name) (allowOpaqueBodies : Bool) : List String :=
@@ -153,7 +153,7 @@ def checkNoCSimp (env : Environment) (csimpMap : CSimpEntryMap) (cinfo : Constan
   | [] => none
   | reasons =>
       let message := String.intercalate "; " reasons
-      some { name := "NoCSimp", reason := s!"@[csimp] theorem '{cinfo.name}' is unsound: {message}" }
+      some { name := "CSimp", reason := s!"@[csimp] theorem '{cinfo.name}' is unsound: {message}" }
 
 def collectAllDangerousCSimps (env : Environment) (csimpMap : CSimpEntryMap)
     (trustModules : Array String := #[]) (checked : Std.HashSet Name := {})
@@ -205,12 +205,12 @@ def checkRecursorIntegrity (env : Environment) (name : Name) : IO (Option CheckF
 def checkNoNativeComputation (name : Name) (value : Expr) (deps : NameSet) : Option CheckFailure :=
   match findNativeComputationInExpr? value with
   | some nativeConst =>
-      some { name := "NoNativeComputation"
+      some { name := "NativeComputation"
            , reason := s!"Definition '{name}' uses native computation primitive '{nativeConst}'" }
   | none =>
       match findNativeComputationInDeps deps name with
       | some nativeConst =>
-          some { name := "NoNativeComputation"
+          some { name := "NativeComputation"
                , reason := s!"Definition '{name}' depends on native computation primitive '{nativeConst}'" }
       | none => none
 
@@ -237,7 +237,7 @@ def checkSourcePatterns (env : Environment) (name : Name) (blacklist whitelist :
         found := found.push s!"Line {i + 1}: {pattern}"
 
   if found.isEmpty then return none
-  return some { name := "SourceCheck", reason := s!"Source file contains blacklisted patterns: {String.intercalate ", " found.toList}" }
+  return some { name := "SourcePatterns", reason := s!"Source file contains blacklisted patterns: {String.intercalate ", " found.toList}" }
 
 unsafe def checkEnvironmentReplay (env : Environment) (allDeps : NameSet) (trustModules : Array String := #[]) : IO (Option CheckFailure) := do
   try
@@ -248,7 +248,7 @@ unsafe def checkEnvironmentReplay (env : Environment) (allDeps : NameSet) (trust
     for modName in modulesToReplay do
       let mFile ← findOLean modName
       unless (← mFile.pathExists) do
-        return some { name := "EnvironmentReplay"
+        return some { name := "Replay"
                     , reason := s!"Object file '{mFile}' of module {modName} does not exist" }
 
       let (mod, region) ← readModuleData mFile
@@ -265,19 +265,19 @@ unsafe def checkEnvironmentReplay (env : Environment) (allDeps : NameSet) (trust
 
     return none
   catch e =>
-    return some { name := "EnvironmentReplay", reason := s!"Replay verification failed: {e}" }
+    return some { name := "Replay", reason := s!"Replay verification failed: {e}" }
 
 unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : Name) :
     IO (List CheckFailure) := do
   match env.find? name with
   | none =>
-    return [{ name := "KernelTypeCheck", reason := s!"Theorem '{name}' not found in environment" }]
+    return [{ name := "KernelRejection", reason := s!"Theorem '{name}' not found in environment" }]
   | some info =>
     let mut failures : Array CheckFailure := #[]
     let allowOpaqueBodies := config.checkOpaqueBodies
 
     let csimpMap : CSimpEntryMap :=
-      if config.checkExtern then
+      if config.checkCSimp then
         buildCSimpEntryMap env
       else
         Std.HashMap.emptyWithCapacity
@@ -297,6 +297,12 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         if config.failFast then
           return failures.toList
 
+    if config.checkPartial then
+      if let some failure := checkNoPartial info then
+        failures := failures.push failure
+        if config.failFast then
+          return failures.toList
+
     if config.checkSorry then
       if let some failure := checkNoSorry name value then
         failures := failures.push failure
@@ -308,10 +314,14 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         failures := failures.push failure
         if config.failFast then
           return failures.toList
+
+    if config.checkImplementedBy then
       if let some failure := checkNoImplementedBy env info config.trustModules then
         failures := failures.push failure
         if config.failFast then
           return failures.toList
+
+    if config.checkCSimp then
       if let some failure := checkNoCSimp env csimpMap info config.trustModules allowOpaqueBodies then
         failures := failures.push failure
         if config.failFast then
@@ -325,10 +335,10 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         if config.failFast then
           return failures.toList
 
-    let needsTransitiveDeps := config.checkUnsafe || config.checkAxioms ||
-                  config.checkSorry || config.checkExtern ||
+    let needsTransitiveDeps := config.checkUnsafe || config.checkPartial || config.checkAxioms ||
+                  config.checkSorry || config.checkExtern || config.checkImplementedBy || config.checkCSimp ||
                   config.checkConstructors || config.checkRecursors ||
-                  config.checkSource || config.enableReplay
+                  config.checkSource || config.enableReplay || config.checkNativeComputation
     let skipConst := shouldSkipConstant env config.trustModules
 
     let (allDeps, depInfos, _missingDeps) :=
@@ -346,10 +356,11 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
       else
         (∅, #[], [])
 
-    if let some failure := checkNoNativeComputation name value allDeps then
-      failures := failures.push failure
-      if config.failFast then
-        return failures.toList
+    if config.checkNativeComputation then
+      if let some failure := checkNoNativeComputation name value allDeps then
+        failures := failures.push failure
+        if config.failFast then
+          return failures.toList
 
     if needsTransitiveDeps then
       let optionChecks : List (Name → ConstantInfo → Option CheckFailure) :=
@@ -360,20 +371,29 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
               match depInfo.value? (allowOpaque := allowOpaqueBodies) with
               | some depValue =>
                   if hasSorry depValue then
-                    some { name := "NoSorry", reason := s!"Dependency '{depName}' contains sorry" }
+                    some { name := "Sorry", reason := s!"Dependency '{depName}' contains sorry" }
                   else
                     none
               | none => none) :: base
           else
             base
         let base :=
+          if config.checkCSimp then
+            (fun _ info => checkNoCSimp env csimpMap info config.trustModules allowOpaqueBodies) :: base
+          else
+            base
+        let base :=
+          if config.checkImplementedBy then
+            (fun _ info => checkNoImplementedBy env info config.trustModules) :: base
+          else
+            base
+        let base :=
           if config.checkExtern then
-            (fun _ info => checkNoCSimp env csimpMap info config.trustModules allowOpaqueBodies) ::
-            (fun _ info => checkNoImplementedBy env info config.trustModules) ::
             (fun _ info => checkNoExtern env info config.trustModules) :: base
           else
             base
         let base := if config.checkUnsafe then (fun _ info => checkNoUnsafe info) :: base else base
+        let base := if config.checkPartial then (fun _ info => checkNoPartial info) :: base else base
         base.reverse
 
       let ioChecks : List (Name → IO (Option CheckFailure)) :=
@@ -393,7 +413,7 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
             if config.failFast then
               return failures.toList
 
-        if config.checkExtern && csimpMap.contains depInfo.name then
+        if config.checkCSimp && csimpMap.contains depInfo.name then
           checkedCSimps := checkedCSimps.insert depInfo.name
 
         for checkFn in ioChecks do
@@ -412,12 +432,12 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
 
       if !disallowed.isEmpty then
         let failure : CheckFailure :=
-          { name := "AxiomWhitelist", reason := s!"Uses disallowed axioms: {String.intercalate ", " disallowed.toList}" }
+          { name := "CustomAxioms", reason := s!"Uses disallowed axioms: {String.intercalate ", " disallowed.toList}" }
         failures := failures.push failure
         if config.failFast then
           return failures.toList
 
-    if config.checkExtern then
+    if config.checkCSimp then
       let csimpFailures := collectAllDangerousCSimps env csimpMap config.trustModules checkedCSimps allowOpaqueBodies
       for failure in csimpFailures do
         failures := failures.push failure

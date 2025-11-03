@@ -9,3 +9,5 @@ __pycache__/
 .ruff_cache/
 
 tmp/
+
+tests/benchmark/comparison_results.json

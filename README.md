@@ -6,7 +6,7 @@ Configurable proof verification for Lean 4 that detects soundness exploits throu
 
 ## Exploits
 
-See [EXPLOITS.md](EXPLOITS.md) for a list of the different exploit categories that LeanParanoia checks for.
+See [EXPLOITS.md](EXPLOITS.md) for a list of the different exploit categories that LeanParanoia checks for. For a comparison of how LeanParanoia, lean4checker, and SafeVerify detect these exploits, see [VERIFIER_COMPARISON.md](VERIFIER_COMPARISON.md).
 
 ## Installation & Usage
 

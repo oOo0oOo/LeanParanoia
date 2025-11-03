@@ -9,10 +9,11 @@ dependencies = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--no-header --tb=line -q -m 'not benchmark'"
+addopts = "--no-header --tb=line -q -m 'not benchmark and not benchmark_comparison'"
 markers = [
     "exploit: Tests that verify exploit detection",
     "benchmark: Performance benchmarks with Mathlib (skipped by default)",
+    "benchmark_comparison: Performance comparison benchmarks (skipped by default)"
 ]
 
 [dependency-groups]

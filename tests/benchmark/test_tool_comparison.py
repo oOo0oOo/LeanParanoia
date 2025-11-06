@@ -80,135 +80,82 @@ class Lean4CheckerRunner:
 
 
 class SafeVerifyRunner:
-    def __init__(self, project_path: Path):
+    def __init__(self, project_path: Path, references_dir: Path):
         self.project_path = project_path
-        self.temp_dir = project_path / ".safeverify_temp"
-        self.temp_dir.mkdir(exist_ok=True)
-        self._prepared_files = {}
+        self.references_dir = references_dir
+        self._compiled_refs = {}
 
     def prepare(self, module: str, theorem: str) -> Tuple[Path, Path]:
-        """Prepare target and locate submission olean files (not timed)."""
-        if (module, theorem) in self._prepared_files:
-            return self._prepared_files[(module, theorem)]
+        """Compile reference file and locate submission olean (not timed)."""
+        if module in self._compiled_refs:
+            return self._compiled_refs[module]
 
-        theorem_type, declaration_kind, qualified_theorem_name = self._get_theorem_info(module, theorem)
-        target_file = self.temp_dir / f"target_{module.replace('.', '_')}.lean"
+        rel_path = module.replace("LeanTestProject.", "").replace(".", "/") + ".lean"
+        ref_file = self.references_dir / rel_path
 
-        # Create target file with proper namespace structure to match the submission
-        # Extract namespace from qualified name
-        if '.' in qualified_theorem_name:
-            parts = qualified_theorem_name.split('.')
-            namespace = '.'.join(parts[:-1])
-            simple_name = parts[-1]
-            # Axioms can't have proofs
-            if declaration_kind == "axiom":
-                target_content = f"namespace {namespace}\n\n{declaration_kind} {simple_name} : {theorem_type}\n\nend {namespace}\n"
-            else:
-                target_content = f"namespace {namespace}\n\n{declaration_kind} {simple_name} : {theorem_type} := sorry\n\nend {namespace}\n"
-        else:
-            # Axioms can't have proofs
-            if declaration_kind == "axiom":
-                target_content = f"{declaration_kind} {qualified_theorem_name} : {theorem_type}\n"
-            else:
-                target_content = f"{declaration_kind} {qualified_theorem_name} : {theorem_type} := sorry\n"
+        if not ref_file.exists():
+            raise RuntimeError(f"Reference file not found: {ref_file}")
 
-        target_file.write_text(target_content)
+        # Copy reference to project directory and compile it there
+        project_ref_file = self.project_path / rel_path
+        project_ref_file.parent.mkdir(parents=True, exist_ok=True)
+        project_ref_file.write_text(ref_file.read_text())
 
-        target_olean = self._compile(target_file)
-        if not target_olean:
-            raise RuntimeError("Failed to compile target")
+        ref_olean = self._compile(project_ref_file)
+        if not ref_olean:
+            raise RuntimeError(f"Failed to compile reference: {ref_file}")
 
         submission_olean = self.project_path / ".lake/build/lib/lean" / f"{module.replace('.', '/')}.olean"
-        if not submission_olean.exists():
-            raise RuntimeError("Submission olean not found")
 
-        self._prepared_files[(module, theorem)] = (target_olean, submission_olean)
-        return target_olean, submission_olean
+        # KernelRejection files don't have oleans (kernel rejected them during compilation)
+        if not submission_olean.exists():
+            if "KernelRejection" in module:
+                # Mark as N/A - these are expected to be rejected by kernel
+                self._compiled_refs[module] = None
+                return None, None
+            raise RuntimeError(f"Submission olean not found: {submission_olean}")
+
+        self._compiled_refs[module] = (ref_olean, submission_olean)
+        return ref_olean, submission_olean
 
     def run(self, module: str, theorem: str) -> Tuple[str, str]:
         """Run safe_verify (timed portion only)."""
         try:
-            target_olean, submission_olean = self._prepared_files[(module, theorem)]
+            cached = self._compiled_refs.get(module)
+            if cached is None:
+                # KernelRejection or other N/A case
+                return "n/a", "Kernel rejected during compilation"
+
+            ref_olean, submission_olean = cached
             code, output = run_subprocess(
-                ["lake", "exe", "safe_verify", str(target_olean.absolute()), str(submission_olean.absolute())],
+                ["lake", "exe", "safe_verify", str(ref_olean.absolute()), str(submission_olean.absolute())],
                 self.project_path
             )
 
-            # Check for test setup issues (false positives)
-            test_setup_issues = [
-                'not found in submission',
-                'does not have the same type',
-                'does not match the requirement',
-                'is not the same kind as the requirement'
-            ]
+            # Extract last line as the relevant message
+            lines = output.strip().split('\n')
+            last_line = lines[-1] if lines else ""
 
-            output_stripped = output.strip()
-            is_test_setup_issue = any(pattern in output_stripped for pattern in test_setup_issues)
-
-            if is_test_setup_issue:
-                detected = "n/a"
-            else:
-                detected = "no" if code == 0 else ("yes" if code > 0 else "n/a")
-
-            return detected, output_stripped
+            detected = "no" if code == 0 else "yes"
+            return detected, last_line
         except Exception as e:
             return "n/a", f"Error: {e}"
 
-    def _get_theorem_info(self, module: str, theorem: str) -> Tuple[str, str, str]:
-        """Extract theorem/def type, declaration kind, and qualified name from source file."""
-        lean_file = self.project_path / f"{module.replace('.', '/')}.lean"
-        if not lean_file.exists():
-            return "False", "theorem", theorem
-        content = lean_file.read_text()
-
-        # Remove comments to avoid false matches
-        # Remove line comments
-        content_no_comments = re.sub(r'--[^\n]*', '', content)
-        # Remove block comments
-        content_no_comments = re.sub(r'/-.*?-/', '', content_no_comments, flags=re.DOTALL)
-
-        # Extract the simple name (last part after the last dot)
-        simple_name = theorem.split('.')[-1] if '.' in theorem else theorem
-
-        # Try to find theorem or def with the exact name (with or without namespace)
-        for kind in ['theorem', 'def', 'axiom']:
-            # Try simple name first (most common case)
-            pattern = rf'{kind}\s+{re.escape(simple_name)}\s*(?:\([^)]*\))?\s*:\s*([^:]+?)(?:\s*:=|\s*where|\s*$)'
-            match = re.search(pattern, content, re.MULTILINE | re.DOTALL)
-            if match:
-                theorem_type = match.group(1).strip()
-                # Clean up multiline declarations
-                theorem_type = ' '.join(theorem_type.split())
-
-                # For target, convert 'axiom' to 'axiom' to match submission exactly
-                # (SafeVerify will check the axiom dependencies)
-                return_kind = kind
-
-                # Now get the full qualified name for the target
-                # Check if there's a namespace declaration (use cleaned content)
-                namespace_match = re.search(r'^namespace\s+([A-Za-z0-9_.]+)', content_no_comments, re.MULTILINE)
-                if namespace_match:
-                    namespace = namespace_match.group(1)
-                    qualified_name = f"{namespace}.{simple_name}"
-                else:
-                    qualified_name = simple_name
-
-                return theorem_type, return_kind, qualified_name
-
-        return "False", "theorem", theorem
-
-    def _compile(self, lean_file: Path):
+    def _compile(self, lean_file: Path) -> Path:
         """Compile a Lean file to olean."""
         olean = lean_file.with_suffix(".olean")
         if olean.exists():
             olean.unlink()
+
         code, output = run_subprocess(
             ["lake", "env", "lean", "-o", str(olean.absolute()), str(lean_file.absolute())],
             self.project_path
         )
-        if code != 0:
-            print(f"Warning: Failed to compile {lean_file.name}: {output[:200]}")
-        return olean if olean.exists() else None
+
+        if code != 0 or not olean.exists():
+            raise RuntimeError(f"Failed to compile {lean_file.name}: {output[:200]}")
+
+        return olean
 
 
 def setup_tool(project_path: Path, tool_name: str, git_url: str, rev: str):
@@ -235,8 +182,9 @@ def lean4checker_runner(test_project_path):
 @pytest.fixture(scope="session")
 def safeverify_runner(test_project_path):
     project_path = Path(test_project_path)
+    references_dir = TEST_DIR / "benchmark" / "references"
     setup_tool(project_path, "SafeVerify", "https://github.com/GasStationManager/SafeVerify.git", "main")
-    return SafeVerifyRunner(project_path)
+    return SafeVerifyRunner(project_path, references_dir)
 
 
 @pytest.mark.benchmark_comparison

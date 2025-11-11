@@ -19,6 +19,15 @@ def pytest_addoption(parser):
         default=False,
         help="Run only LeanParanoia benchmarks, skip other tools for faster testing",
     )
+    parser.addoption("--skip-leanparanoia", action="store_true", default=False)
+    parser.addoption("--skip-lean4checker", action="store_true", default=False)
+    parser.addoption("--skip-safeverify", action="store_true", default=False)
+    parser.addoption(
+        "--exploit-filter",
+        action="store",
+        default=None,
+        help="Filter exploits by substring (e.g., 'AuxiliaryShadowing' or 'MatcherShadowing')",
+    )
 
 
 TEST_DIR = Path(__file__).parent

@@ -5,11 +5,11 @@ def bar (n : Nat) : Nat :=
   | 0 => 0
   | n + 1 => n
 
--- Use bar's auxiliary matcher directly
-def foo (n : Nat) : Nat :=
-  bar.match_1 (fun _ => Nat) n (fun _ => 0) (fun k => k)
+def foo : Nat → Nat
+  | 0 => 0
+  | n + 1 => n
 
-theorem test1 : bar 5 = 4 := rfl
-theorem test2 : foo 5 = 4 := rfl
+theorem test1 : bar 5 = 4 := sorry
+theorem test2 : foo 5 = 4 := sorry
 
 end LeanTestProject.AuxiliaryShadowing.MatcherShadowing

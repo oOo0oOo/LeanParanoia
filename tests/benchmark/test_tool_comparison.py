@@ -230,7 +230,16 @@ def safeverify_runner(test_project_path):
         "https://github.com/GasStationManager/SafeVerify.git",
         "main",
     )
-    return SafeVerifyRunner(project_path, references_dir)
+    runner = SafeVerifyRunner(project_path, references_dir)
+
+    # Warmup: compile SafeVerify once to avoid first-run penalty in timing
+    print("Warming up SafeVerify (compiling safe_verify executable)...")
+    try:
+        run_subprocess(["lake", "build", "safe_verify"], project_path)
+    except Exception as e:
+        print(f"Warning: SafeVerify warmup failed: {e}")
+
+    return runner
 
 
 @pytest.mark.benchmark_comparison
@@ -238,34 +247,62 @@ def test_tool_comparison(verifier, lean4checker_runner, safeverify_runner, reque
     """Compare LeanParanoia, lean4checker, and SafeVerify on exploit files.
 
     Use --leanparanoia-only to skip other tools for faster benchmarking.
+    Use --exploit-filter to test specific exploits (e.g., 'AuxiliaryShadowing').
     """
     leanparanoia_only = request.config.getoption("--leanparanoia-only", default=False)
+    exploit_filter = request.config.getoption("--exploit-filter", default=None)
+
+    # Support running individual tools
+    skip_leanparanoia = request.config.getoption("--skip-leanparanoia", default=False)
+    skip_lean4checker = (
+        request.config.getoption("--skip-lean4checker", default=False)
+        or leanparanoia_only
+    )
+    skip_safeverify = (
+        request.config.getoption("--skip-safeverify", default=False)
+        or leanparanoia_only
+    )
 
     results = {}
     for category, cases in collect_test_cases().items():
         category_results = []
 
         for module, theorem in cases:
+            # Filter exploits if requested
+            if exploit_filter and exploit_filter not in module:
+                continue
+
             print(f"Testing {module}")
 
-            try:
-                lp_time, result = time_and_run(
-                    lambda: verifier.verify_theorem(module, theorem)
+            if not skip_leanparanoia:
+                try:
+                    lp_time, result = time_and_run(
+                        lambda: verifier.verify_theorem(module, theorem)
+                    )
+                    lp_ff_time, _ = time_and_run(
+                        lambda: verifier.verify_theorem(module, theorem, fail_fast=True)
+                    )
+                    lp_detected = "no" if result.success else "yes"
+                    lp_message = (
+                        "; ".join(result.failed_tests) if result.failed_tests else ""
+                    )
+                except Exception as e:
+                    lp_detected, lp_message, lp_time, lp_ff_time = (
+                        "n/a",
+                        str(e),
+                        None,
+                        None,
+                    )
+            else:
+                lp_detected, lp_message, lp_time, lp_ff_time = (
+                    "n/a",
+                    "skipped",
+                    None,
+                    None,
                 )
-                lp_ff_time, _ = time_and_run(
-                    lambda: verifier.verify_theorem(module, theorem, fail_fast=True)
-                )
-                lp_detected = "no" if result.success else "yes"
-                lp_message = (
-                    "; ".join(result.failed_tests) if result.failed_tests else ""
-                )
-            except Exception as e:
-                lp_detected, lp_message, lp_time, lp_ff_time = "n/a", str(e), None, None
 
-            if leanparanoia_only:
-                # Skip other tools
+            if skip_lean4checker:
                 l4c_detected, l4c_message, l4c_time = "n/a", "skipped", None
-                sv_detected, sv_message, sv_time = "n/a", "skipped", None
             else:
                 try:
                     l4c_time, (l4c_detected, l4c_message) = time_and_run(
@@ -274,6 +311,9 @@ def test_tool_comparison(verifier, lean4checker_runner, safeverify_runner, reque
                 except Exception as e:
                     l4c_detected, l4c_message, l4c_time = "n/a", str(e), None
 
+            if skip_safeverify:
+                sv_detected, sv_message, sv_time = "n/a", "skipped", None
+            else:
                 try:
                     safeverify_runner.prepare(module, theorem)
                     sv_time, (sv_detected, sv_message) = time_and_run(
@@ -309,8 +349,21 @@ def test_tool_comparison(verifier, lean4checker_runner, safeverify_runner, reque
         if category_results:
             results[category] = category_results
 
-    # Write results
+    # Update results (merge with existing)
     output_file = TEST_DIR / "benchmark" / "comparison_results.json"
+    if output_file.exists():
+        existing = json.loads(output_file.read_text())
+        # Merge: update existing categories, add new ones
+        for category, category_results in results.items():
+            if category in existing:
+                # Update existing category
+                existing_map = {r["exploit_file"]: r for r in existing[category]}
+                for new_result in category_results:
+                    existing_map[new_result["exploit_file"]] = new_result
+                existing[category] = list(existing_map.values())
+            else:
+                existing[category] = category_results
+        results = existing
     output_file.write_text(json.dumps(results, indent=2))
     assert results
 

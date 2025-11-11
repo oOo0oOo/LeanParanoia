@@ -276,17 +276,16 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
     let mut failures : Array CheckFailure := #[]
     let allowOpaqueBodies := config.checkOpaqueBodies
 
-    let csimpMap : CSimpEntryMap :=
-      if config.checkCSimp then
-        buildCSimpEntryMap env
-      else
-        Std.HashMap.emptyWithCapacity
-    let mut checkedCSimps : Std.HashSet Name := Std.HashSet.emptyWithCapacity
-
     let value := (info.value? (allowOpaque := allowOpaqueBodies)).getD (.const name [])
 
     if config.checkMetavariables then
       if let some failure := checkNoMetavars name value then
+        failures := failures.push failure
+        if config.failFast then
+          return failures.toList
+
+    if config.checkSorry then
+      if let some failure := checkNoSorry name value then
         failures := failures.push failure
         if config.failFast then
           return failures.toList
@@ -303,12 +302,6 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         if config.failFast then
           return failures.toList
 
-    if config.checkSorry then
-      if let some failure := checkNoSorry name value then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
-
     if config.checkExtern then
       if let some failure := checkNoExtern env info config.trustModules then
         failures := failures.push failure
@@ -321,28 +314,15 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         if config.failFast then
           return failures.toList
 
-    if config.checkCSimp then
-      if let some failure := checkNoCSimp env csimpMap info config.trustModules allowOpaqueBodies then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
-      if csimpMap.contains info.name then
-        checkedCSimps := checkedCSimps.insert info.name
-
-    if config.checkSource then
-      if let some failure ← checkSourcePatterns env name config.sourceBlacklist config.sourceWhitelist config.trustModules then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
-
     let needsTransitiveDeps := config.checkUnsafe || config.checkPartial || config.checkAxioms ||
                   config.checkSorry || config.checkExtern || config.checkImplementedBy || config.checkCSimp ||
                   config.checkConstructors || config.checkRecursors ||
                   config.checkSource || config.enableReplay || config.checkNativeComputation
+
     let skipConst := shouldSkipConstant env config.trustModules
 
     let (allDeps, depInfos, _missingDeps) :=
-      if needsTransitiveDeps then
+      if needsTransitiveDeps && (failures.isEmpty || !config.failFast) then
         let deps := collectTransitiveDeps env name ∅ config.trustModules allowOpaqueBodies
         let depList := deps.toList
         let (infoArray, missingRev) := depList.foldl
@@ -362,7 +342,41 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         if config.failFast then
           return failures.toList
 
-    if needsTransitiveDeps then
+    if config.checkAxioms && needsTransitiveDeps then
+      let mut disallowed : Array String := #[]
+      for (depName, depInfo) in depInfos do
+        if isAxiom depInfo then
+          let axiomStr := depName.toString
+          if !config.allowedAxioms.contains axiomStr then
+            disallowed := disallowed.push axiomStr
+            if config.failFast then
+              let failure : CheckFailure :=
+                { name := "CustomAxioms", reason := s!"Uses disallowed axioms: {String.intercalate ", " disallowed.toList}" }
+              return [failure]
+
+      if !disallowed.isEmpty then
+        let failure : CheckFailure :=
+          { name := "CustomAxioms", reason := s!"Uses disallowed axioms: {String.intercalate ", " disallowed.toList}" }
+        failures := failures.push failure
+        if config.failFast then
+          return failures.toList
+
+    let csimpMap : CSimpEntryMap :=
+      if config.checkCSimp && (failures.isEmpty || !config.failFast) then
+        buildCSimpEntryMap env
+      else
+        Std.HashMap.emptyWithCapacity
+    let mut checkedCSimps : Std.HashSet Name := Std.HashSet.emptyWithCapacity
+
+    if config.checkCSimp && (failures.isEmpty || !config.failFast) then
+      if let some failure := checkNoCSimp env csimpMap info config.trustModules allowOpaqueBodies then
+        failures := failures.push failure
+        if config.failFast then
+          return failures.toList
+      if csimpMap.contains info.name then
+        checkedCSimps := checkedCSimps.insert info.name
+
+    if needsTransitiveDeps && (failures.isEmpty || !config.failFast) then
       let optionChecks : List (Name → ConstantInfo → Option CheckFailure) :=
         let base : List (Name → ConstantInfo → Option CheckFailure) := []
         let base :=
@@ -422,29 +436,20 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
             if config.failFast then
               return failures.toList
 
-    if config.checkAxioms then
-      let mut disallowed : Array String := #[]
-      for (depName, depInfo) in depInfos do
-        if isAxiom depInfo then
-          let axiomStr := depName.toString
-          if !config.allowedAxioms.contains axiomStr then
-            disallowed := disallowed.push axiomStr
-
-      if !disallowed.isEmpty then
-        let failure : CheckFailure :=
-          { name := "CustomAxioms", reason := s!"Uses disallowed axioms: {String.intercalate ", " disallowed.toList}" }
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
-
-    if config.checkCSimp then
+    if config.checkCSimp && (failures.isEmpty || !config.failFast) then
       let csimpFailures := collectAllDangerousCSimps env csimpMap config.trustModules checkedCSimps allowOpaqueBodies
       for failure in csimpFailures do
         failures := failures.push failure
         if config.failFast then
           return failures.toList
 
-    if config.enableReplay then
+    if config.checkSource && (failures.isEmpty || !config.failFast) then
+      if let some failure ← checkSourcePatterns env name config.sourceBlacklist config.sourceWhitelist config.trustModules then
+        failures := failures.push failure
+        if config.failFast then
+          return failures.toList
+
+    if config.enableReplay && (failures.isEmpty || !config.failFast) then
       if let some failure ← checkEnvironmentReplay env allDeps config.trustModules then
         failures := failures.push failure
         if config.failFast then

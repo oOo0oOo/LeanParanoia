@@ -6,7 +6,7 @@ Configurable proof verification for Lean 4 that detects soundness exploits throu
 
 ## Exploits
 
-See [EXPLOITS.md](EXPLOITS.md) for a list of the different exploit categories that LeanParanoia checks for. For a comparison of how LeanParanoia, lean4checker, and SafeVerify detect these exploits, see [VERIFIER_COMPARISON.md](VERIFIER_COMPARISON.md).
+See [VERIFIER_COMPARISON.md](VERIFIER_COMPARISON.md) for different exploits that LeanParanoia detects.
 
 ## Installation & Usage
 
@@ -63,8 +63,9 @@ Options:
 ## Related Projects
 
 - [lean4checker](https://github.com/leanprover/lean4checker): Recheck a compiled Lean olean file using the Lean kernel. **Direct dependency**
-- [SaveVerify](https://github.com/GasStationManager/SafeVerify): Check whether a file of submitted Lean code and/or proof matches the specifications.
+- [SafeVerify](https://github.com/GasStationManager/SafeVerify): Check whether a file of submitted Lean code and/or proof matches the specifications.
 - [Lean 4 Autograder](https://github.com/robertylewis/lean4-autograder-main): Lean 4 autograder that works with Gradescope.
+- [Pantograph](https://centaur.stanford.edu/PyPantograph/frontend.html#track-checking): Machine-to-machine interaction interface for Lean 4 includes a checker.
 
 ## Testing
 

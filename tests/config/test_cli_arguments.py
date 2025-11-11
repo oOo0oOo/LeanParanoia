@@ -147,7 +147,9 @@ def test_fail_fast_limits_failures(paranoia_exe: Path, test_project_path: Path):
     assert result.returncode != 0
     payload = json.loads(_combined_output(result))
     assert payload["failures"] == {
-        "Sorry": ["Theorem 'LeanTestProject.Sorry.Direct.exploit_theorem' contains sorry"]
+        "Sorry": [
+            "Theorem 'LeanTestProject.Sorry.Direct.exploit_theorem' contains sorry"
+        ]
     }
 
 

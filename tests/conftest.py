@@ -11,6 +11,16 @@ from pathlib import Path
 from typing import Optional, List
 
 
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--leanparanoia-only",
+        action="store_true",
+        default=False,
+        help="Run only LeanParanoia benchmarks, skip other tools for faster testing",
+    )
+
+
 TEST_DIR = Path(__file__).parent
 LEAN_FILES = TEST_DIR / "lean_exploit_files"
 TEMPLATE_DIR = TEST_DIR / "project_template"

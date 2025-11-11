@@ -3,9 +3,9 @@
 import json
 import re
 import subprocess
-import timeit
+import time
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import pytest
 
@@ -37,7 +37,9 @@ def collect_test_cases() -> Dict[str, List[Tuple[str, str]]]:
 
     categorized = {}
     for lean_file in sorted((TEST_DIR / "lean_exploit_files").rglob("*.lean")):
-        parts = lean_file.relative_to(TEST_DIR / "lean_exploit_files").with_suffix("").parts
+        parts = (
+            lean_file.relative_to(TEST_DIR / "lean_exploit_files").with_suffix("").parts
+        )
         if len(parts) >= 2:
             category = parts[0]
             module = "LeanTestProject." + ".".join(parts)
@@ -55,7 +57,9 @@ def collect_test_cases() -> Dict[str, List[Tuple[str, str]]]:
 def run_subprocess(cmd: List[str], cwd: Path, timeout: int = 60) -> Tuple[int, str]:
     """Run subprocess and return (exit_code, output)."""
     try:
-        result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout
+        )
         return result.returncode, result.stdout + result.stderr
     except subprocess.TimeoutExpired:
         return -1, "Timeout"
@@ -63,10 +67,12 @@ def run_subprocess(cmd: List[str], cwd: Path, timeout: int = 60) -> Tuple[int, s
         return -2, f"Error: {e}"
 
 
-def time_function(func, repeat: int = 1) -> float:
-    """Time a function call (average of 2 runs) in milliseconds."""
-    times = timeit.Timer(func).repeat(repeat=repeat, number=1)
-    return (sum(times) / len(times)) * 1000
+def time_and_run(func: Callable[[], Any]) -> Tuple[float, Any]:
+    """Run a function once and return (time_ms, result)."""
+    start = time.perf_counter()
+    result = func()
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    return elapsed_ms, result
 
 
 class Lean4CheckerRunner:
@@ -74,7 +80,9 @@ class Lean4CheckerRunner:
         self.project_path = project_path
 
     def run(self, module: str) -> Tuple[str, str]:
-        code, output = run_subprocess(["lake", "exe", "lean4checker", module], self.project_path)
+        code, output = run_subprocess(
+            ["lake", "exe", "lean4checker", module], self.project_path
+        )
         detected = "no" if code == 0 else ("yes" if code > 0 else "n/a")
         return detected, output.strip()
 
@@ -105,7 +113,11 @@ class SafeVerifyRunner:
         if not ref_olean:
             raise RuntimeError(f"Failed to compile reference: {ref_file}")
 
-        submission_olean = self.project_path / ".lake/build/lib/lean" / f"{module.replace('.', '/')}.olean"
+        submission_olean = (
+            self.project_path
+            / ".lake/build/lib/lean"
+            / f"{module.replace('.', '/')}.olean"
+        )
 
         # KernelRejection files don't have oleans (kernel rejected them during compilation)
         if not submission_olean.exists():
@@ -128,12 +140,18 @@ class SafeVerifyRunner:
 
             ref_olean, submission_olean = cached
             code, output = run_subprocess(
-                ["lake", "exe", "safe_verify", str(ref_olean.absolute()), str(submission_olean.absolute())],
-                self.project_path
+                [
+                    "lake",
+                    "exe",
+                    "safe_verify",
+                    str(ref_olean.absolute()),
+                    str(submission_olean.absolute()),
+                ],
+                self.project_path,
             )
 
             # Extract last line as the relevant message
-            lines = output.strip().split('\n')
+            lines = output.strip().split("\n")
             last_line = lines[-1] if lines else ""
 
             detected = "no" if code == 0 else "yes"
@@ -148,8 +166,15 @@ class SafeVerifyRunner:
             olean.unlink()
 
         code, output = run_subprocess(
-            ["lake", "env", "lean", "-o", str(olean.absolute()), str(lean_file.absolute())],
-            self.project_path
+            [
+                "lake",
+                "env",
+                "lean",
+                "-o",
+                str(olean.absolute()),
+                str(lean_file.absolute()),
+            ],
+            self.project_path,
         )
 
         if code != 0 or not olean.exists():
@@ -164,10 +189,21 @@ def setup_tool(project_path: Path, tool_name: str, git_url: str, rev: str):
     content = lakefile.read_text()
 
     if tool_name not in content:
-        content += f'\n[[require]]\nname = "{tool_name}"\ngit = "{git_url}"\nrev = "{rev}"\n'
+        content += (
+            f'\n[[require]]\nname = "{tool_name}"\ngit = "{git_url}"\nrev = "{rev}"\n'
+        )
         lakefile.write_text(content)
-        subprocess.run(["lake", "update", "--keep-toolchain", tool_name], cwd=project_path, capture_output=True)
-        subprocess.run(["lake", "build", tool_name.lower()], cwd=project_path, capture_output=True, timeout=300)
+        subprocess.run(
+            ["lake", "update", "--keep-toolchain", tool_name],
+            cwd=project_path,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["lake", "build", tool_name.lower()],
+            cwd=project_path,
+            capture_output=True,
+            timeout=300,
+        )
 
 
 @pytest.fixture(scope="session")
@@ -175,7 +211,12 @@ def lean4checker_runner(test_project_path):
     project_path = Path(test_project_path)
     toolchain = (project_path / "lean-toolchain").read_text().strip()
     lean_version = toolchain.split(":")[-1]
-    setup_tool(project_path, "lean4checker", "https://github.com/leanprover/lean4checker.git", lean_version)
+    setup_tool(
+        project_path,
+        "lean4checker",
+        "https://github.com/leanprover/lean4checker.git",
+        lean_version,
+    )
     return Lean4CheckerRunner(project_path)
 
 
@@ -183,13 +224,22 @@ def lean4checker_runner(test_project_path):
 def safeverify_runner(test_project_path):
     project_path = Path(test_project_path)
     references_dir = TEST_DIR / "benchmark" / "references"
-    setup_tool(project_path, "SafeVerify", "https://github.com/GasStationManager/SafeVerify.git", "main")
+    setup_tool(
+        project_path,
+        "SafeVerify",
+        "https://github.com/GasStationManager/SafeVerify.git",
+        "main",
+    )
     return SafeVerifyRunner(project_path, references_dir)
 
 
 @pytest.mark.benchmark_comparison
-def test_tool_comparison(verifier, lean4checker_runner, safeverify_runner):
-    """Compare LeanParanoia, lean4checker, and SafeVerify on exploit files."""
+def test_tool_comparison(verifier, lean4checker_runner, safeverify_runner, request):
+    """Compare LeanParanoia, lean4checker, and SafeVerify on exploit files.
+
+    Use --leanparanoia-only to skip other tools for faster benchmarking.
+    """
+    leanparanoia_only = request.config.getoption("--leanparanoia-only", default=False)
 
     results = {}
     for category, cases in collect_test_cases().items():
@@ -199,46 +249,62 @@ def test_tool_comparison(verifier, lean4checker_runner, safeverify_runner):
             print(f"Testing {module}")
 
             try:
-                lp_time = time_function(lambda: verifier.verify_theorem(module, theorem))
-                lp_ff_time = time_function(lambda: verifier.verify_theorem(module, theorem, fail_fast=True))
-                result = verifier.verify_theorem(module, theorem)
+                lp_time, result = time_and_run(
+                    lambda: verifier.verify_theorem(module, theorem)
+                )
+                lp_ff_time, _ = time_and_run(
+                    lambda: verifier.verify_theorem(module, theorem, fail_fast=True)
+                )
                 lp_detected = "no" if result.success else "yes"
-                lp_message = "; ".join(result.failed_tests) if result.failed_tests else ""
+                lp_message = (
+                    "; ".join(result.failed_tests) if result.failed_tests else ""
+                )
             except Exception as e:
                 lp_detected, lp_message, lp_time, lp_ff_time = "n/a", str(e), None, None
 
-            try:
-                l4c_time = time_function(lambda: lean4checker_runner.run(module))
-                l4c_detected, l4c_message = lean4checker_runner.run(module)
-            except Exception as e:
-                l4c_detected, l4c_message, l4c_time = "n/a", str(e), None
+            if leanparanoia_only:
+                # Skip other tools
+                l4c_detected, l4c_message, l4c_time = "n/a", "skipped", None
+                sv_detected, sv_message, sv_time = "n/a", "skipped", None
+            else:
+                try:
+                    l4c_time, (l4c_detected, l4c_message) = time_and_run(
+                        lambda: lean4checker_runner.run(module)
+                    )
+                except Exception as e:
+                    l4c_detected, l4c_message, l4c_time = "n/a", str(e), None
 
-            try:
-                safeverify_runner.prepare(module, theorem)
-                sv_time = time_function(lambda: safeverify_runner.run(module, theorem))
-                sv_detected, sv_message = safeverify_runner.run(module, theorem)
-            except Exception as e:
-                sv_detected, sv_message, sv_time = "n/a", str(e), None
+                try:
+                    safeverify_runner.prepare(module, theorem)
+                    sv_time, (sv_detected, sv_message) = time_and_run(
+                        lambda: safeverify_runner.run(module, theorem)
+                    )
+                except Exception as e:
+                    sv_detected, sv_message, sv_time = "n/a", str(e), None
 
-            category_results.append({
-                "exploit_file": module.replace("LeanTestProject.", "").replace(".", "/"),
-                "leanparanoia": {
-                    "detected": lp_detected,
-                    "message": lp_message,
-                    "time_ms": round(lp_time) if lp_time else None,
-                    "time_failfast_ms": round(lp_ff_time) if lp_ff_time else None,
-                },
-                "lean4checker": {
-                    "detected": l4c_detected,
-                    "message": l4c_message,
-                    "time_ms": round(l4c_time) if l4c_time else None,
-                },
-                "safeverify": {
-                    "detected": sv_detected,
-                    "message": sv_message,
-                    "time_ms": round(sv_time) if sv_time else None,
-                },
-            })
+            category_results.append(
+                {
+                    "exploit_file": module.replace("LeanTestProject.", "").replace(
+                        ".", "/"
+                    ),
+                    "leanparanoia": {
+                        "detected": lp_detected,
+                        "message": lp_message,
+                        "time_ms": round(lp_time) if lp_time else None,
+                        "time_failfast_ms": round(lp_ff_time) if lp_ff_time else None,
+                    },
+                    "lean4checker": {
+                        "detected": l4c_detected,
+                        "message": l4c_message,
+                        "time_ms": round(l4c_time) if l4c_time else None,
+                    },
+                    "safeverify": {
+                        "detected": sv_detected,
+                        "message": sv_message,
+                        "time_ms": round(sv_time) if sv_time else None,
+                    },
+                }
+            )
 
         if category_results:
             results[category] = category_results

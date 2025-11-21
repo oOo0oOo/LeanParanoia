@@ -5,7 +5,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "46cd0c3a01903aac90478ce6b3a9160440cd97ad",
+   "rev": "b1efea26e138821953e43dfb8fe63770ccb766d1",
    "name": "lean4checker",
    "manifestFile": "lake-manifest.json",
    "inputRev": "master",

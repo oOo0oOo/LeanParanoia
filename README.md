@@ -2,7 +2,7 @@
 
 > **THIS TOOL IS STILL IN EARLY DEVELOPMENT AND NOT READY FOR USE!**
 
-Configurable proof verification for Lean 4 that detects soundness exploits through dependency analysis and environment replay via [lean4checker](https://github.com/leanprover/lean4checker). Operates without trusted reference files and cannot guarantee complete soundness. Validate critical proofs with challenge–solution verifiers.
+Configurable proof verification for Lean 4 that detects soundness exploits through dependency analysis and environment replay via [lean4checker](https://github.com/leanprover/lean4checker). Operates without trusted reference files and cannot guarantee complete soundness. Validate critical proofs with challenge-solution verifiers.
 
 ## Exploits
 
@@ -63,9 +63,10 @@ Options:
 ## Related Projects
 
 - [lean4checker](https://github.com/leanprover/lean4checker): Recheck a compiled Lean olean file using the Lean kernel. **Direct dependency**
-- [SafeVerify](https://github.com/GasStationManager/SafeVerify): Check whether a file of submitted Lean code and/or proof matches the specifications.
+- [SafeVerify](https://github.com/GasStationManager/SafeVerify): Check whether a file of submitted Lean code and/or proof matches the specifications. (Challenge-solution verifier)
+- [Comparator](https://github.com/leanprover/comparator): Comparator is a trustworthy judge for Lean proofs by the FRO. (Challenge-solution verifier)
+- [Pantograph](https://centaur.stanford.edu/PyPantograph/frontend.html#track-checking): Machine-to-machine interaction interface for Lean 4 includes a checker. (Challenge-solution verifier)
 - [Lean 4 Autograder](https://github.com/robertylewis/lean4-autograder-main): Lean 4 autograder that works with Gradescope.
-- [Pantograph](https://centaur.stanford.edu/PyPantograph/frontend.html#track-checking): Machine-to-machine interaction interface for Lean 4 includes a checker.
 
 ## Testing
 

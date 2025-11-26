@@ -22,6 +22,7 @@ def pytest_addoption(parser):
     parser.addoption("--skip-leanparanoia", action="store_true", default=False)
     parser.addoption("--skip-lean4checker", action="store_true", default=False)
     parser.addoption("--skip-safeverify", action="store_true", default=False)
+    parser.addoption("--skip-comparator", action="store_true", default=False)
     parser.addoption(
         "--exploit-filter",
         action="store",

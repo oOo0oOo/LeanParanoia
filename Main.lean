@@ -127,7 +127,15 @@ unsafe def verifyTheorem (config : VerificationConfig) (theoremName : String) : 
     else
       fullName.components.getLast!
 
-  let failures ← LeanParanoia.runChecks config env actualName
+  -- Build shared resources once for efficiency
+  let csimpMap :=
+    if config.checkCSimp then
+      LeanParanoia.buildCSimpEntryMap env
+    else
+      Std.HashMap.emptyWithCapacity
+  let sourceCache ← IO.mkRef (Std.HashMap.emptyWithCapacity : LeanParanoia.SourceFileCache)
+
+  let failures ← LeanParanoia.runChecks config env actualName csimpMap sourceCache
   return VerificationResult.fromFailures failures
 
 unsafe def main (args : List String) : IO UInt32 := do

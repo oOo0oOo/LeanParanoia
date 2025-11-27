@@ -11,7 +11,7 @@ def getConstantModule (env : Environment) (name : Name) : Option Name :=
 
 def matchesTrustedPrefix (moduleStr : String) (trustModules : Array String) : Bool :=
   trustModules.any fun pref =>
-    moduleStr == pref || (moduleStr.startsWith pref && moduleStr.get! ⟨pref.length⟩ == '.')
+    moduleStr == pref || (moduleStr.startsWith pref && String.Pos.Raw.get! moduleStr ⟨pref.length⟩ == '.')
 
 def nativeComputationPrefixes : Array String :=
   #["Lean.ofReduce", "Lean.reduce", "Lean.nativeDecide", "Lean.trustCompiler"]
@@ -213,5 +213,21 @@ def findSourceFile (_env : Environment) (moduleName : Name) : IO (Option System.
       if ← path.pathExists then return some path
 
   return none
+
+/-- Cache for source file contents to avoid redundant disk I/O -/
+abbrev SourceFileCache := Std.HashMap System.FilePath (Array String)
+
+/-- Read a source file with caching to avoid redundant I/O -/
+def readSourceFileCached (cache : IO.Ref SourceFileCache) (filePath : System.FilePath) : IO (Array String) := do
+  let cached ← cache.get
+  match cached.get? filePath with
+  | some lines => return lines
+  | none =>
+      if !(← filePath.pathExists) then
+        return #[]
+      let content ← IO.FS.readFile filePath
+      let lines := (content.splitOn "\n").toArray
+      cache.modify (·.insert filePath lines)
+      return lines
 
 end LeanParanoia

@@ -215,7 +215,7 @@ def checkNoNativeComputation (name : Name) (value : Expr) (deps : NameSet) : Opt
       | none => none
 
 def checkSourcePatterns (env : Environment) (name : Name) (blacklist whitelist : List String)
-    (trustModules : Array String := #[]) : IO (Option CheckFailure) := do
+    (trustModules : Array String := #[]) (sourceCache : IO.Ref SourceFileCache) : IO (Option CheckFailure) := do
   let some moduleName := getConstantModule env name | return none
   if isTrustedModuleName moduleName trustModules then return none
   if isCoreModuleName env name || isLeanCoreConstant env name then return none
@@ -223,12 +223,12 @@ def checkSourcePatterns (env : Environment) (name : Name) (blacklist whitelist :
   let patterns := blacklist.filter (!whitelist.contains ·)
   let some sourceFile ← findSourceFile env moduleName | return none
 
-  if !(← sourceFile.pathExists) then return none
+  let lines ← readSourceFileCached sourceCache sourceFile
+  if lines.isEmpty then return none
 
-  let lines := (← IO.FS.readFile sourceFile).splitOn "\n"
   let mut found : Array String := #[]
 
-  for h : i in [:lines.length] do
+  for h : i in [:lines.size] do
     let line := lines[i]
     if line.trim.startsWith "--" then continue
 
@@ -267,7 +267,8 @@ unsafe def checkEnvironmentReplay (env : Environment) (allDeps : NameSet) (trust
   catch e =>
     return some { name := "Replay", reason := s!"Replay verification failed: {e}" }
 
-unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : Name) :
+unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : Name)
+    (csimpMap : CSimpEntryMap := Std.HashMap.emptyWithCapacity) (sourceCache : IO.Ref SourceFileCache) :
     IO (List CheckFailure) := do
   match env.find? name with
   | none =>
@@ -322,7 +323,7 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
     let skipConst := shouldSkipConstant env config.trustModules
 
     let (allDeps, depInfos, _missingDeps) :=
-      if needsTransitiveDeps && (failures.isEmpty || !config.failFast) then
+      if needsTransitiveDeps then
         let deps := collectTransitiveDeps env name ∅ config.trustModules allowOpaqueBodies
         let depList := deps.toList
         let (infoArray, missingRev) := depList.foldl
@@ -342,7 +343,7 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         if config.failFast then
           return failures.toList
 
-    if config.checkAxioms && needsTransitiveDeps then
+    if config.checkAxioms then
       let mut disallowed : Array String := #[]
       for (depName, depInfo) in depInfos do
         if isAxiom depInfo then
@@ -360,12 +361,6 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
         failures := failures.push failure
         if config.failFast then
           return failures.toList
-
-    let csimpMap : CSimpEntryMap :=
-      if config.checkCSimp && (failures.isEmpty || !config.failFast) then
-        buildCSimpEntryMap env
-      else
-        Std.HashMap.emptyWithCapacity
     let mut checkedCSimps : Std.HashSet Name := Std.HashSet.emptyWithCapacity
 
     if config.checkCSimp && (failures.isEmpty || !config.failFast) then
@@ -412,7 +407,7 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
 
       let ioChecks : List (Name → IO (Option CheckFailure)) :=
         let base : List (Name → IO (Option CheckFailure)) := []
-        let base := if config.checkSource then (fun depName => checkSourcePatterns env depName config.sourceBlacklist config.sourceWhitelist config.trustModules) :: base else base
+        let base := if config.checkSource then (fun depName => checkSourcePatterns env depName config.sourceBlacklist config.sourceWhitelist config.trustModules sourceCache) :: base else base
         let base := if config.checkRecursors then (fun depName => checkRecursorIntegrity env depName) :: base else base
         let base := if config.checkConstructors then (fun depName => checkConstructorIntegrity env depName) :: base else base
         base.reverse
@@ -444,7 +439,7 @@ unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : N
           return failures.toList
 
     if config.checkSource && (failures.isEmpty || !config.failFast) then
-      if let some failure ← checkSourcePatterns env name config.sourceBlacklist config.sourceWhitelist config.trustModules then
+      if let some failure ← checkSourcePatterns env name config.sourceBlacklist config.sourceWhitelist config.trustModules sourceCache then
         failures := failures.push failure
         if config.failFast then
           return failures.toList

@@ -367,7 +367,18 @@ def test_tool_comparison(verifier, lean4checker_runner, safeverify_runner, compa
 
     results = {}
     test_cases = collect_test_cases()
-    print(f"Collected categories: {test_cases.keys()}")
+    
+    # Calculate total tests
+    total_tests = sum(
+        1 for cases in test_cases.values() 
+        for module, _ in cases 
+        if not exploit_filter or exploit_filter in module
+    )
+    
+    print(f"Testing {total_tests} exploits...\n")
+    
+    test_counter = 0
+    start_time = time.perf_counter()
 
     for category, cases in test_cases.items():
         category_results = []
@@ -376,7 +387,22 @@ def test_tool_comparison(verifier, lean4checker_runner, safeverify_runner, compa
             if exploit_filter and exploit_filter not in module:
                 continue
 
-            print(f"Testing {module}")
+            test_counter += 1
+            
+            # Calculate ETA
+            if test_counter > 1:
+                elapsed = time.perf_counter() - start_time
+                avg_time = elapsed / (test_counter - 1)
+                remaining = (total_tests - test_counter) * avg_time
+                eta_mins = int(remaining // 60)
+                eta_secs = int(remaining % 60)
+                eta_str = f"{eta_mins}m {eta_secs}s" if eta_mins > 0 else f"{eta_secs}s"
+            else:
+                eta_str = "calculating..."
+            
+            percent = int((test_counter / total_tests) * 100)
+            exploit_name = module.replace("LeanTestProject.", "")
+            print(f"[{test_counter}/{total_tests}] {percent}% | ETA: {eta_str} | {exploit_name}")
 
             lp_det, lp_msg, lp_time, lp_ff_time = run_tool("leanparanoia", verifier, module, theorem)
             l4c_det, l4c_msg, l4c_time, _ = run_tool("lean4checker", lean4checker_runner, module)

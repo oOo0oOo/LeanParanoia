@@ -75,6 +75,11 @@ Comprehensive integration tests using pytest:
 ```bash
 uv sync
 uv run pytest tests/
+
+# Run tool comparison
+uv run pytest tests/benchmark/test_tool_comparison.py -m benchmark_comparison -v -s
+# Generate VERIFIER_COMPARISON.md from results
+uv run python tests/benchmark/generate_exploits_table.py
 ```
 
 ## License

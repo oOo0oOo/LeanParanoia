@@ -1,12 +1,12 @@
 # LeanParanoia
 
-> **THIS TOOL IS STILL IN EARLY DEVELOPMENT AND NOT READY FOR USE!**
+> **THIS TOOL IS NEW. USE WITH CAUTION!**
 
 Configurable proof verification for Lean 4 that detects soundness exploits through dependency analysis and environment replay via [lean4checker](https://github.com/leanprover/lean4checker). Operates without trusted reference files and cannot guarantee complete soundness. Validate critical proofs with challenge-solution verifiers.
 
 ## Exploits
 
-See [VERIFIER_COMPARISON.md](VERIFIER_COMPARISON.md) for different exploits that LeanParanoia detects.
+See [VERIFIER_COMPARISON.md](VERIFIER_COMPARISON.md) for a comparison of different proof verifiers and exploits that LeanParanoia detects.
 
 ## Installation & Usage
 
@@ -25,6 +25,28 @@ Then, in your terminal, run:
 lake update --keep-toolchain
 lake build paranoia
 lake exe paranoia MyTheoremName # Use Module.SubModule.theorem_name
+```
+
+## Example Output
+
+LeanParanoia returns a JSON. E.g verifying a theorem that uses `native_decide`:
+
+```json
+{
+    "failures": {
+        "CustomAxioms": [
+            "Uses disallowed axiom: Lean.ofReduceBool",
+            "Uses disallowed axiom: Lean.trustCompiler"
+        ],
+        "NativeComputation": [
+            "Definition 'exploit_theorem' depends on native computation primitive 'Lean.reduceBool'"
+        ],
+        "Replay": [
+            "Replay verification failed: (kernel) (interpreter) unknown declaration 'exploit_theorem._nativeDecide_1_1'"
+        ]
+    },
+    "success": false
+}
 ```
 
 ## Command Line Options

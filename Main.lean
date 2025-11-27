@@ -128,14 +128,10 @@ unsafe def verifyTheorem (config : VerificationConfig) (theoremName : String) : 
       fullName.components.getLast!
 
   -- Build shared resources once for efficiency
-  let csimpMap :=
-    if config.checkCSimp then
-      LeanParanoia.buildCSimpEntryMap env
-    else
-      Std.HashMap.emptyWithCapacity
+  let csimpCache ← IO.mkRef LeanParanoia.mkCSimpCache
   let sourceCache ← IO.mkRef (Std.HashMap.emptyWithCapacity : LeanParanoia.SourceFileCache)
 
-  let failures ← LeanParanoia.runChecks config env actualName csimpMap sourceCache
+  let failures ← LeanParanoia.runChecks config env actualName csimpCache sourceCache
   return VerificationResult.fromFailures failures
 
 unsafe def main (args : List String) : IO UInt32 := do

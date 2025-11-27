@@ -119,16 +119,16 @@ def analyzeConstantForCSimp (env : Environment) (trustModules : Array String)
         reasons.toList
 
 def collectCSimpIssues (env : Environment) (trustModules : Array String)
-  (csimpMap : CSimpEntryMap) (info : ConstantInfo) (allowOpaqueBodies : Bool) : List String :=
-  match csimpEntry? csimpMap info.name with
-  | none => []
+  (csimpCache : IO.Ref CSimpCache) (info : ConstantInfo) (allowOpaqueBodies : Bool) : IO (List String) := do
+  match ← checkIsCSimp env csimpCache info.name with
+  | none => return []
   | some (moduleName, entry) =>
       let moduleStr := moduleName.toString
       if isTrustedConstant env info.name trustModules ||
          isCoreModuleName env info.name ||
          isLeanCoreConstant env info.name ||
          matchesTrustedPrefix moduleStr trustModules then
-        []
+        return []
       else
         let theoremReasons := Id.run do
           let mut acc : Array String := #[]
@@ -145,29 +145,15 @@ def collectCSimpIssues (env : Environment) (trustModules : Array String)
 
         let sourceReasons := analyzeConstantForCSimp env trustModules "source" entry.fromDeclName allowOpaqueBodies
         let targetReasons := analyzeConstantForCSimp env trustModules "target" entry.toDeclName allowOpaqueBodies
-        (theoremReasons.toList ++ sourceReasons ++ targetReasons)
+        return (theoremReasons.toList ++ sourceReasons ++ targetReasons)
 
-def checkNoCSimp (env : Environment) (csimpMap : CSimpEntryMap) (cinfo : ConstantInfo)
-    (trustModules : Array String := #[]) (allowOpaqueBodies : Bool := true) : Option CheckFailure :=
-  match collectCSimpIssues env trustModules csimpMap cinfo allowOpaqueBodies with
-  | [] => none
+def checkNoCSimp (env : Environment) (csimpCache : IO.Ref CSimpCache) (cinfo : ConstantInfo)
+    (trustModules : Array String := #[]) (allowOpaqueBodies : Bool := true) : IO (Option CheckFailure) := do
+  match ← collectCSimpIssues env trustModules csimpCache cinfo allowOpaqueBodies with
+  | [] => return none
   | reasons =>
       let message := String.intercalate "; " reasons
-      some { name := "CSimp", reason := s!"@[csimp] theorem '{cinfo.name}' is unsound: {message}" }
-
-def collectAllDangerousCSimps (env : Environment) (csimpMap : CSimpEntryMap)
-    (trustModules : Array String := #[]) (checked : Std.HashSet Name := {})
-    (allowOpaqueBodies : Bool := true) : List CheckFailure :=
-  (csimpMap.toList.foldl (init := []) fun acc (thmName, _) =>
-    if checked.contains thmName then
-      acc
-    else
-      match env.find? thmName with
-      | none => acc
-      | some thmInfo =>
-          match checkNoCSimp env csimpMap thmInfo trustModules allowOpaqueBodies with
-          | some failure => failure :: acc
-          | none => acc).reverse
+      return some { name := "CSimp", reason := s!"@[csimp] theorem '{cinfo.name}' is unsound: {message}" }
 
 def checkConstructorIntegrity (env : Environment) (name : Name) : IO (Option CheckFailure) := do
   match env.find? name with
@@ -267,189 +253,182 @@ unsafe def checkEnvironmentReplay (env : Environment) (allDeps : NameSet) (trust
   catch e =>
     return some { name := "Replay", reason := s!"Replay verification failed: {e}" }
 
+def checkGlobalCSimps (env : Environment) (csimpCache : IO.Ref CSimpCache) (trustModules : Array String)
+    (allowOpaqueBodies : Bool) : IO (List CheckFailure) := do
+  let moduleNames := env.allImportedModuleNames
+  let mut failures : List CheckFailure := []
+
+  for modIdx in [:moduleNames.size] do
+    let entries := Lean.Compiler.CSimp.ext.ext.getModuleEntries env modIdx
+    for entry in entries do
+      let data : Lean.Compiler.CSimp.Entry :=
+        match entry with
+        | ScopedEnvExtension.Entry.global data => data
+        | ScopedEnvExtension.Entry.scoped _ data => data
+
+      if let some info := env.find? data.thmName then
+        if let some failure ← checkNoCSimp env csimpCache info trustModules allowOpaqueBodies then
+          failures := failure :: failures
+
+  return failures
+
 unsafe def runChecks (config : VerificationConfig) (env : Environment) (name : Name)
-    (csimpMap : CSimpEntryMap := Std.HashMap.emptyWithCapacity) (sourceCache : IO.Ref SourceFileCache) :
+    (csimpCache : IO.Ref CSimpCache) (sourceCache : IO.Ref SourceFileCache) :
     IO (List CheckFailure) := do
   match env.find? name with
   | none =>
     return [{ name := "KernelRejection", reason := s!"Theorem '{name}' not found in environment" }]
   | some info =>
-    let mut failures : Array CheckFailure := #[]
+    let failuresRef ← IO.mkRef #[]
     let allowOpaqueBodies := config.checkOpaqueBodies
+
+    let addFailure (f : CheckFailure) : IO Unit := do
+      failuresRef.modify (·.push f)
 
     let value := (info.value? (allowOpaque := allowOpaqueBodies)).getD (.const name [])
 
     if config.checkMetavariables then
       if let some failure := checkNoMetavars name value then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
 
     if config.checkSorry then
       if let some failure := checkNoSorry name value then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
 
     if config.checkUnsafe then
       if let some failure := checkNoUnsafe info then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
 
     if config.checkPartial then
       if let some failure := checkNoPartial info then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
 
     if config.checkExtern then
       if let some failure := checkNoExtern env info config.trustModules then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
 
     if config.checkImplementedBy then
       if let some failure := checkNoImplementedBy env info config.trustModules then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
+
+    if config.checkCSimp then
+      if let some failure ← checkNoCSimp env csimpCache info config.trustModules allowOpaqueBodies then
+        addFailure failure
+        if config.failFast then return [failure]
 
     let needsTransitiveDeps := config.checkUnsafe || config.checkPartial || config.checkAxioms ||
                   config.checkSorry || config.checkExtern || config.checkImplementedBy || config.checkCSimp ||
                   config.checkConstructors || config.checkRecursors ||
                   config.checkSource || config.enableReplay || config.checkNativeComputation
 
-    let skipConst := shouldSkipConstant env config.trustModules
+    let mut allDeps : NameSet := ∅
 
-    let (allDeps, depInfos, _missingDeps) :=
-      if needsTransitiveDeps then
-        let deps := collectTransitiveDeps env name ∅ config.trustModules allowOpaqueBodies
-        let depList := deps.toList
-        let (infoArray, missingRev) := depList.foldl
-          (fun (acc : Array (Name × ConstantInfo) × List String) depName =>
-            let (arr, miss) := acc
-            match env.find? depName with
-            | some info => (arr.push (depName, info), miss)
-            | none => (arr, depName.toString :: miss))
-          (Array.mkEmpty depList.length, ([] : List String))
-        (deps, infoArray, missingRev.reverse)
-      else
-        (∅, #[], [])
+    if needsTransitiveDeps then
+      let visitor (depName : Name) (depInfo : ConstantInfo) : IO (Option CheckFailure) := do
+        if depName == name then
+          if config.checkAxioms then
+            if isAxiom depInfo then
+              let axiomStr := depName.toString
+              if !config.allowedAxioms.contains axiomStr then
+                let f := { name := "CustomAxioms", reason := s!"Uses disallowed axiom: {axiomStr}" }
+                addFailure f
+                if config.failFast then return some f
+          return none
+
+        if config.checkSorry then
+           match depInfo.value? (allowOpaque := allowOpaqueBodies) with
+           | some depValue =>
+               if hasSorry depValue then
+                 let f := { name := "Sorry", reason := s!"Dependency '{depName}' contains sorry" }
+                 addFailure f
+                 if config.failFast then return some f
+           | none => pure ()
+
+        if config.checkUnsafe then
+          if let some f := checkNoUnsafe depInfo then
+            addFailure f
+            if config.failFast then return some f
+
+        if config.checkPartial then
+          if let some f := checkNoPartial depInfo then
+            addFailure f
+            if config.failFast then return some f
+
+        if config.checkExtern then
+          if let some f := checkNoExtern env depInfo config.trustModules then
+            addFailure f
+            if config.failFast then return some f
+
+        if config.checkImplementedBy then
+          if let some f := checkNoImplementedBy env depInfo config.trustModules then
+            addFailure f
+            if config.failFast then return some f
+
+        if config.checkAxioms then
+          if isAxiom depInfo then
+            let axiomStr := depName.toString
+            if !config.allowedAxioms.contains axiomStr then
+              let f := { name := "CustomAxioms", reason := s!"Uses disallowed axiom: {axiomStr}" }
+              addFailure f
+              if config.failFast then return some f
+
+        if config.checkCSimp then
+          if let some f ← checkNoCSimp env csimpCache depInfo config.trustModules allowOpaqueBodies then
+            addFailure f
+            if config.failFast then return some f
+
+        if config.checkSource then
+           if let some f ← checkSourcePatterns env depName config.sourceBlacklist config.sourceWhitelist config.trustModules sourceCache then
+             addFailure f
+             if config.failFast then return some f
+
+        if config.checkRecursors then
+           if let some f ← checkRecursorIntegrity env depName then
+             addFailure f
+             if config.failFast then return some f
+
+        if config.checkConstructors then
+           if let some f ← checkConstructorIntegrity env depName then
+             addFailure f
+             if config.failFast then return some f
+
+        return none
+
+      let (failure?, deps) ← visitTransitiveDeps env name visitor ∅ config.trustModules allowOpaqueBodies
+      allDeps := deps
+
+      if let some f := failure? then
+        return [f]
 
     if config.checkNativeComputation then
       if let some failure := checkNoNativeComputation name value allDeps then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
 
-    if config.checkAxioms then
-      let mut disallowed : Array String := #[]
-      for (depName, depInfo) in depInfos do
-        if isAxiom depInfo then
-          let axiomStr := depName.toString
-          if !config.allowedAxioms.contains axiomStr then
-            disallowed := disallowed.push axiomStr
-            if config.failFast then
-              let failure : CheckFailure :=
-                { name := "CustomAxioms", reason := s!"Uses disallowed axioms: {String.intercalate ", " disallowed.toList}" }
-              return [failure]
+    if config.checkCSimp then
+      let currentFailures ← failuresRef.get
+      if currentFailures.isEmpty || !config.failFast then
+        let globalFailures ← checkGlobalCSimps env csimpCache config.trustModules allowOpaqueBodies
+        for f in globalFailures do
+          addFailure f
+          if config.failFast then return [f]
 
-      if !disallowed.isEmpty then
-        let failure : CheckFailure :=
-          { name := "CustomAxioms", reason := s!"Uses disallowed axioms: {String.intercalate ", " disallowed.toList}" }
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
-    let mut checkedCSimps : Std.HashSet Name := Std.HashSet.emptyWithCapacity
-
-    if config.checkCSimp && (failures.isEmpty || !config.failFast) then
-      if let some failure := checkNoCSimp env csimpMap info config.trustModules allowOpaqueBodies then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
-      if csimpMap.contains info.name then
-        checkedCSimps := checkedCSimps.insert info.name
-
-    if needsTransitiveDeps && (failures.isEmpty || !config.failFast) then
-      let optionChecks : List (Name → ConstantInfo → Option CheckFailure) :=
-        let base : List (Name → ConstantInfo → Option CheckFailure) := []
-        let base :=
-          if config.checkSorry then
-            (fun depName depInfo =>
-              match depInfo.value? (allowOpaque := allowOpaqueBodies) with
-              | some depValue =>
-                  if hasSorry depValue then
-                    some { name := "Sorry", reason := s!"Dependency '{depName}' contains sorry" }
-                  else
-                    none
-              | none => none) :: base
-          else
-            base
-        let base :=
-          if config.checkCSimp then
-            (fun _ info => checkNoCSimp env csimpMap info config.trustModules allowOpaqueBodies) :: base
-          else
-            base
-        let base :=
-          if config.checkImplementedBy then
-            (fun _ info => checkNoImplementedBy env info config.trustModules) :: base
-          else
-            base
-        let base :=
-          if config.checkExtern then
-            (fun _ info => checkNoExtern env info config.trustModules) :: base
-          else
-            base
-        let base := if config.checkUnsafe then (fun _ info => checkNoUnsafe info) :: base else base
-        let base := if config.checkPartial then (fun _ info => checkNoPartial info) :: base else base
-        base.reverse
-
-      let ioChecks : List (Name → IO (Option CheckFailure)) :=
-        let base : List (Name → IO (Option CheckFailure)) := []
-        let base := if config.checkSource then (fun depName => checkSourcePatterns env depName config.sourceBlacklist config.sourceWhitelist config.trustModules sourceCache) :: base else base
-        let base := if config.checkRecursors then (fun depName => checkRecursorIntegrity env depName) :: base else base
-        let base := if config.checkConstructors then (fun depName => checkConstructorIntegrity env depName) :: base else base
-        base.reverse
-
-      for (depName, depInfo) in depInfos do
-        if depName == name || skipConst depName then
-          continue
-
-        for checkFn in optionChecks do
-          if let some failure := checkFn depName depInfo then
-            failures := failures.push failure
-            if config.failFast then
-              return failures.toList
-
-        if config.checkCSimp && csimpMap.contains depInfo.name then
-          checkedCSimps := checkedCSimps.insert depInfo.name
-
-        for checkFn in ioChecks do
-          if let some failure ← checkFn depName then
-            failures := failures.push failure
-            if config.failFast then
-              return failures.toList
-
-    if config.checkCSimp && (failures.isEmpty || !config.failFast) then
-      let csimpFailures := collectAllDangerousCSimps env csimpMap config.trustModules checkedCSimps allowOpaqueBodies
-      for failure in csimpFailures do
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
-
-    if config.checkSource && (failures.isEmpty || !config.failFast) then
+    if config.checkSource then
       if let some failure ← checkSourcePatterns env name config.sourceBlacklist config.sourceWhitelist config.trustModules sourceCache then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
 
-    if config.enableReplay && (failures.isEmpty || !config.failFast) then
+    if config.enableReplay then
       if let some failure ← checkEnvironmentReplay env allDeps config.trustModules then
-        failures := failures.push failure
-        if config.failFast then
-          return failures.toList
+        addFailure failure
+        if config.failFast then return [failure]
 
-    return failures.toList
+    return (← failuresRef.get).toList
 
 end LeanParanoia

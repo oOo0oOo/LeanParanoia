@@ -136,36 +136,47 @@ end Collector
 end Deps
 
 /-- Collect all constants transitively used by a constant -/
-partial def collectTransitiveDeps (env : Environment) (name : Name)
+partial def visitTransitiveDeps (env : Environment) (name : Name)
+    (visitor : Name → ConstantInfo → IO (Option CheckFailure))
     (visited : NameSet := ∅) (trustModules : Array String := #[])
-    (allowOpaqueBodies : Bool := true) : NameSet :=
+    (allowOpaqueBodies : Bool := true) : IO (Option CheckFailure × NameSet) := do
   let skip := shouldSkipConstant env trustModules
   if visited.contains name || skip name then
-    visited
-  else
-    let rec loop (state : Deps.Collector) (acc : NameSet) : NameSet :=
-      match state.dequeue? with
-      | none => acc
-      | some (current, pending) =>
-          if acc.contains current || skip current then
-            loop pending acc
-          else
-            let acc := acc.insert current
-            let nextState :=
-              match env.find? current with
-              | none => pending
-              | some info =>
-                  let afterImpl :=
-                    match Lean.Compiler.implementedByAttr.getParam? env current with
-                    | some implName => pending.enqueueIfNew skip implName
-                    | none => pending
-                  let afterValue :=
-                    match info.value? (allowOpaque := allowOpaqueBodies) with
-                    | some value => afterImpl.enqueueAll skip (collectDirectConstants value).toList
-                    | none => afterImpl
-                  afterValue.enqueueAll skip (collectDirectConstants info.type).toList
-            loop nextState acc
-    loop (Deps.Collector.seed visited name) visited
+    return (none, visited)
+
+  let mut state := Deps.Collector.seed visited name
+  let mut visited := visited
+
+  -- We use a loop with IO
+  let rec loop (state : Deps.Collector) (visited : NameSet) : IO (Option CheckFailure × NameSet) := do
+    match state.dequeue? with
+    | none => return (none, visited)
+    | some (current, pending) =>
+        if visited.contains current || skip current then
+          loop pending visited
+        else
+          let visited := visited.insert current
+          match env.find? current with
+          | none => loop pending visited
+          | some info =>
+              -- Run visitor
+              if let some failure ← visitor current info then
+                return (some failure, visited)
+
+              let nextState :=
+                match Lean.Compiler.implementedByAttr.getParam? env current with
+                | some implName => pending.enqueueIfNew skip implName
+                | none => pending
+
+              let nextState :=
+                match info.value? (allowOpaque := allowOpaqueBodies) with
+                | some value => nextState.enqueueAll skip (collectDirectConstants value).toList
+                | none => nextState
+
+              let nextState := nextState.enqueueAll skip (collectDirectConstants info.type).toList
+              loop nextState visited
+
+  loop state visited
 
 def findNativeComputationInDeps (deps : NameSet) (selfName : Name) : Option Name :=
   deps.toList.find? fun dep => dep != selfName && isNativeComputationName dep
@@ -179,29 +190,36 @@ def collectModulesToReplay (env : Environment) (allDeps : NameSet) (trustModules
         else modules.insert modName
       | none => modules
 
-abbrev CSimpEntryMap := Std.HashMap Name (Name × Lean.Compiler.CSimp.Entry)
+structure CSimpCache where
+  entries : Std.HashMap Name (Name × Lean.Compiler.CSimp.Entry)
+  scannedModules : Std.HashSet Nat
 
-def buildCSimpEntryMap (env : Environment) : CSimpEntryMap :=
-  let moduleNames := env.allImportedModuleNames
-  let totalSize := moduleNames.size
-  let initialCapacity := totalSize * 4
-  let rec loop (idx : Nat) (acc : CSimpEntryMap) : CSimpEntryMap :=
-    if h : idx < totalSize then
-      let moduleName := moduleNames[idx]!
-      let entries := Lean.Compiler.CSimp.ext.ext.getModuleEntries env idx
-      let acc := entries.foldl (init := acc) fun acc entry =>
-        let data : Lean.Compiler.CSimp.Entry :=
-          match entry with
-          | ScopedEnvExtension.Entry.global data => data
-          | ScopedEnvExtension.Entry.scoped _ data => data
-        acc.insert data.thmName (moduleName, data)
-      loop (idx + 1) acc
-    else
-      acc
-  loop 0 (Std.HashMap.emptyWithCapacity initialCapacity)
+def mkCSimpCache : CSimpCache := { entries := Std.HashMap.emptyWithCapacity, scannedModules := Std.HashSet.emptyWithCapacity }
 
-def csimpEntry? (csimpMap : CSimpEntryMap) (name : Name) : Option (Name × Lean.Compiler.CSimp.Entry) :=
-  csimpMap.get? name
+def checkIsCSimp (env : Environment) (cache : IO.Ref CSimpCache) (name : Name) : IO (Option (Name × Lean.Compiler.CSimp.Entry)) := do
+  let c ← cache.get
+  if let some entry := c.entries.get? name then
+    return some entry
+
+  let some modIdx := env.getModuleIdxFor? name | return none
+  let idx := modIdx.toNat
+  if c.scannedModules.contains idx then
+    return none
+
+  -- Scan module
+  let moduleName := env.allImportedModuleNames[idx]!
+  let entries := Lean.Compiler.CSimp.ext.ext.getModuleEntries env modIdx
+  let mut newEntries := c.entries
+  for entry in entries do
+    let data : Lean.Compiler.CSimp.Entry :=
+      match entry with
+      | ScopedEnvExtension.Entry.global data => data
+      | ScopedEnvExtension.Entry.scoped _ data => data
+    newEntries := newEntries.insert data.thmName (moduleName, data)
+
+  cache.set { entries := newEntries, scannedModules := c.scannedModules.insert idx }
+
+  return newEntries.get? name
 
 def findSourceFile (_env : Environment) (moduleName : Name) : IO (Option System.FilePath) := do
   let relPath := System.FilePath.mk (moduleName.toString.replace "." "/") |>.addExtension "lean"

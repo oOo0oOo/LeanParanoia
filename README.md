@@ -1,6 +1,6 @@
 # LeanParanoia
 
-> **THIS TOOL IS NEW. USE WITH CAUTION!**
+> **Outdated experimental verifier.** This project targets Lean 4.25.0 and has not been validated against current Lean releases. Kernel correctness, environment replay, and compiled-module loading are complex and version-dependent; the checks and benchmark results here should not be treated as a current soundness assessment. Updating this verifier requires a dedicated review of those mechanisms and its exploit tests, beyond a routine toolchain bump.
 
 Configurable proof verification for Lean 4 that detects soundness exploits through dependency analysis and environment replay via [lean4checker](https://github.com/leanprover/lean4checker). Operates without trusted reference files and cannot guarantee complete soundness. Validate critical proofs with challenge-solution verifiers.
 
